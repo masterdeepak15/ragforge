@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAGForge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface-2: #263347;
+    --border: #334155; --text: #f1f5f9; --muted: #94a3b8; --dim: #64748b;
+    --accent: #10b981; --accent-dim: rgba(16,185,129,.12);
+    --cyan: #06b6d4;   --cyan-dim: rgba(6,182,212,.12);
+    --amber: #f59e0b;  --amber-dim: rgba(245,158,11,.1);
+    --font-head: 'Space Grotesk', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f8fafc; --surface: #ffffff; --surface-2: #f1f5f9;
+      --border: #e2e8f0; --text: #0f172a; --muted: #475569; --dim: #94a3b8;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f8fafc; --surface: #ffffff; --surface-2: #f1f5f9;
+    --border: #e2e8f0; --text: #0f172a; --muted: #475569; --dim: #94a3b8;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-body); font-size: 14px; line-height: 1.6;
+    padding-inline: 20px; padding-block: 40px;
+  }
+  .container { max-width: 960px; margin-inline: auto; }
+  .header { margin-bottom: 48px; }
+  .logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .logo-mark {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-head); font-weight: 700; font-size: 22px; color: #fff; flex-shrink: 0;
+  }
+  h1 { font-family: var(--font-head); font-size: clamp(24px,4vw,36px); font-weight: 700; color: var(--text); text-wrap: balance; line-height: 1.15; }
+  .tagline { color: var(--muted); font-size: 15px; margin-top: 8px; max-width: 560px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; font-family: var(--font-head); letter-spacing: .02em; }
+  .chip-green  { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(16,185,129,.25); }
+  .chip-cyan   { background: var(--cyan-dim);   color: var(--cyan);   border: 1px solid rgba(6,182,212,.25); }
+  .chip-amber  { background: var(--amber-dim);  color: var(--amber);  border: 1px solid rgba(245,158,11,.2); }
+  .chip-dim    { background: var(--surface-2);  color: var(--muted);  border: 1px solid var(--border); }
+  .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .eyebrow { font-family: var(--font-head); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-family: var(--font-head); font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .card-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .icon-green { background: var(--accent-dim); }
+  .icon-cyan  { background: var(--cyan-dim); }
+  .icon-slate { background: var(--surface-2); }
+  .tree { font-family: var(--font-head); font-size: 12px; }
+  .tree-node { padding: 3px 0; display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  .tree-node .label { color: var(--text); }
+  .tree-node .badge { margin-left: auto; font-size: 10px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .badge-green { background: var(--accent-dim); color: var(--accent); }
+  .badge-cyan  { background: var(--cyan-dim);   color: var(--cyan); }
+  .badge-dim   { background: var(--surface-2);  color: var(--dim); }
+  .indent-1 { padding-left: 16px; }
+  .indent-2 { padding-left: 32px; }
+  .flow { display: flex; flex-direction: column; gap: 4px; }
+  .flow-step { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid transparent; }
+  .flow-num { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-family: var(--font-head); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .num-accent { background: var(--accent); color: #fff; }
+  .num-cyan   { background: var(--cyan);   color: #fff; }
+  .flow-label { font-family: var(--font-head); font-size: 12px; font-weight: 600; color: var(--text); }
+  .flow-desc  { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+  .flow-arrow { text-align: center; color: var(--border); font-size: 12px; margin: 1px 0 1px 15px; }
+  .stack-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); gap: 8px; }
+  .stack-row:last-child { border-bottom: none; }
+  .stack-name { font-family: var(--font-head); font-size: 12px; font-weight: 600; color: var(--text); }
+  .stack-desc { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .stack-tag  { font-size: 10px; font-weight: 500; font-family: var(--font-head); color: var(--dim); flex-shrink: 0; }
+  .cmd-block { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-top: 20px; }
+  .cmd-label { font-size: 10px; color: var(--dim); font-family: var(--font-head); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+  .cmd { font-family: 'Space Grotesk', monospace; font-size: 13px; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .cmd .prompt { color: var(--dim); }
+  .phases { display: flex; flex-direction: column; gap: 6px; }
+  .phase { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); }
+  .phase-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .status-done    { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+  .status-pending { background: var(--border); }
+  .phase-name { font-family: var(--font-head); font-size: 12px; font-weight: 600; color: var(--text); }
+  .phase-items { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .phase-badge { font-size: 10px; font-family: var(--font-head); font-weight: 600; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; white-space: nowrap; margin-top: 2px; }
+  .pb-done    { background: var(--accent-dim); color: var(--accent); }
+  .pb-pending { background: var(--surface); color: var(--dim); border: 1px solid var(--border); }
+  .divider { height: 1px; background: var(--border); margin-block: 32px; }
+  section { margin-bottom: 32px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <div class="logo-row">
+      <div class="logo-mark">R</div>
+      <div>
+        <h1>RAGForge</h1>
+        <p class="tagline">Self-hosted Knowledge Base &amp; AI Agent platform — zero-dependency local mode, production PostgreSQL + pgvector.</p>
+      </div>
+    </div>
+    <div class="chips">
+      <span class="chip chip-green"><span class="chip-dot"></span>TypeScript</span>
+      <span class="chip chip-cyan"><span class="chip-dot"></span>React 19</span>
+      <span class="chip chip-green"><span class="chip-dot"></span>Fastify</span>
+      <span class="chip chip-cyan"><span class="chip-dot"></span>SQLite / pgvector</span>
+      <span class="chip chip-amber"><span class="chip-dot"></span>SSE Streaming</span>
+      <span class="chip chip-dim">MIT License</span>
+    </div>
+    <div class="cmd-block">
+      <div class="cmd-label">Quick start</div>
+      <div class="cmd"><span class="prompt">$</span> npx ragforge start</div>
+    </div>
+  </header>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="eyebrow">Build Status</div>
+    <div class="phases">
+      <div class="phase"><div class="phase-status status-done"></div><div style="flex:1"><div class="phase-name">Monorepo scaffold &amp; shared types</div><div class="phase-items">npm workspaces · @ragforge/shared · @ragforge/server · @ragforge/web</div></div><span class="phase-badge pb-done">Done</span></div>
+      <div class="phase"><div class="phase-status status-done"></div><div style="flex:1"><div class="phase-name">Dual-storage database layer</div><div class="phase-items">@libsql/client SQLite · Drizzle ORM · pgvector schema · AES-256-GCM encryption</div></div><span class="phase-badge pb-done">Done</span></div>
+      <div class="phase"><div class="phase-status status-done"></div><div style="flex:1"><div class="phase-name">AI provider gateway</div><div class="phase-items">OpenAI · Anthropic · Gemini OAuth · Groq OAuth · Ollama · PKCE flows</div></div><span class="phase-badge pb-done">Done</span></div>
+      <div class="phase"><div class="phase-status status-done"></div><div style="flex:1"><div class="phase-name">RAG ingestion &amp; retrieval pipeline</div><div class="phase-items">PDF/DOCX/URL loaders · recursive chunker · BM25 + vector · RRF hybrid search</div></div><span class="phase-badge pb-done">Done</span></div>
+      <div class="phase"><div class="phase-status status-done"></div><div style="flex:1"><div class="phase-name">Fastify API server — 9 route modules</div><div class="phase-items">setup · auth · providers · oauth · knowledge-bases · documents · chat · playground</div></div><span class="phase-badge pb-done">Done</span></div>
+      <div class="phase"><div class="phase-status status-done"></div><div style="flex:1"><div class="phase-name">React 19 frontend — 12 components, 0 TS errors</div><div class="phase-items">Chat + SSE citations · KB management · Settings + OAuth · Playground retrieval tester</div></div><span class="phase-badge pb-done">Done</span></div>
+      <div class="phase"><div class="phase-status status-pending"></div><div style="flex:1"><div class="phase-name">Docker + docker-compose (production)</div><div class="phase-items">PostgreSQL + pgvector · Dockerfile · docker-compose.yml · env template</div></div><span class="phase-badge pb-pending">Next</span></div>
+      <div class="phase"><div class="phase-status status-pending"></div><div style="flex:1"><div class="phase-name">npm publication &amp; npx CLI entry-point</div><div class="phase-items">bin/ragforge.js · one-command local run · README</div></div><span class="phase-badge pb-pending">Next</span></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="eyebrow">Architecture</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><div class="card-icon icon-green">🔄</div>RAG Pipeline</div>
+        <div class="flow">
+          <div class="flow-step"><div class="flow-num num-cyan">1</div><div><div class="flow-label">Document Ingest</div><div class="flow-desc">PDF · DOCX · TXT · MD · URL → recursive character chunking (chunk=512, overlap=64)</div></div></div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-step"><div class="flow-num num-cyan">2</div><div><div class="flow-label">Embedding</div><div class="flow-desc">Batch 32 · Float32Array blob (SQLite) or vector column (pgvector)</div></div></div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-step"><div class="flow-num num-accent">3</div><div><div class="flow-label">Hybrid Retrieval</div><div class="flow-desc">Cosine vector search + BM25 (k1=1.5, b=0.75) → RRF (w=0.7/0.3)</div></div></div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-step"><div class="flow-num num-accent">4</div><div><div class="flow-label">SSE Stream</div><div class="flow-desc">Citations first → token stream → done event with latency ms</div></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="card-icon icon-cyan">⚡</div>Tech Stack</div>
+        <div class="stack-row"><div><div class="stack-name">Fastify 5</div><div class="stack-desc">JWT auth · multipart · CORS · SPA static</div></div><div class="stack-tag">server</div></div>
+        <div class="stack-row"><div><div class="stack-name">Drizzle ORM</div><div class="stack-desc">Dual schema: SQLite + PostgreSQL</div></div><div class="stack-tag">db</div></div>
+        <div class="stack-row"><div><div class="stack-name">@libsql/client</div><div class="stack-desc">Zero native-build SQLite (no node-gyp)</div></div><div class="stack-tag">db</div></div>
+        <div class="stack-row"><div><div class="stack-name">React 19 + Vite</div><div class="stack-desc">Lazy routes · React Router 6 · Tailwind CSS</div></div><div class="stack-tag">ui</div></div>
+        <div class="stack-row"><div><div class="stack-name">react-markdown</div><div class="stack-desc">GFM + rehype-highlight in chat</div></div><div class="stack-tag">ui</div></div>
+        <div class="stack-row"><div><div class="stack-name">AES-256-GCM</div><div class="stack-desc">API keys + OAuth tokens encrypted at rest</div></div><div class="stack-tag">crypto</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="eyebrow">Source Map</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><div class="card-icon icon-slate">📁</div>packages/server/src</div>
+        <div class="tree">
+          <div class="tree-node"><span>├─</span><span class="label">index.ts</span><span class="badge badge-green">entry</span></div>
+          <div class="tree-node"><span>├─</span><span class="label">db/</span></div>
+          <div class="tree-node indent-1"><span>├─</span> connection.ts <span class="badge badge-dim">dual ctx</span></div>
+          <div class="tree-node indent-1"><span>├─</span> schema/sqlite.ts</div>
+          <div class="tree-node indent-1"><span>└─</span> schema/pg.ts</div>
+          <div class="tree-node"><span>├─</span><span class="label">core/providers/</span></div>
+          <div class="tree-node indent-1"><span>└─</span> openai · anthropic · gemini · groq · ollama</div>
+          <div class="tree-node"><span>├─</span><span class="label">core/ingestion/</span></div>
+          <div class="tree-node indent-1"><span>└─</span> recursive.chunker · loaders</div>
+          <div class="tree-node"><span>├─</span><span class="label">core/vector/</span></div>
+          <div class="tree-node indent-1"><span>├─</span> sqlite.vector <span class="badge badge-dim">in-memory cosine</span></div>
+          <div class="tree-node indent-1"><span>└─</span> pg.vector <span class="badge badge-dim">pgvector &lt;=&gt;</span></div>
+          <div class="tree-node"><span>├─</span><span class="label">core/retrieval/</span></div>
+          <div class="tree-node indent-1"><span>└─</span> bm25 · hybrid.retriever</div>
+          <div class="tree-node"><span>├─</span><span class="label">services/</span></div>
+          <div class="tree-node indent-1"><span>└─</span> chat.service · ingestion.service</div>
+          <div class="tree-node"><span>└─</span><span class="label">routes/</span> (9 modules)</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="card-icon icon-slate">📁</div>packages/web/src</div>
+        <div class="tree">
+          <div class="tree-node"><span>├─</span><span class="label">App.tsx</span><span class="badge badge-cyan">router</span></div>
+          <div class="tree-node"><span>├─</span><span class="label">types/api.ts</span></div>
+          <div class="tree-node"><span>├─</span><span class="label">lib/</span></div>
+          <div class="tree-node indent-1"><span>├─</span> api.ts <span class="badge badge-dim">fetch + SSE</span></div>
+          <div class="tree-node indent-1"><span>└─</span> auth.tsx <span class="badge badge-dim">AuthContext</span></div>
+          <div class="tree-node"><span>├─</span><span class="label">pages/</span></div>
+          <div class="tree-node indent-1"><span>├─</span> SetupPage <span class="badge badge-green">3-step wizard</span></div>
+          <div class="tree-node indent-1"><span>├─</span> LoginPage</div>
+          <div class="tree-node indent-1"><span>├─</span> ChatPage <span class="badge badge-green">SSE controller</span></div>
+          <div class="tree-node indent-1"><span>├─</span> KnowledgeBasesPage</div>
+          <div class="tree-node indent-1"><span>├─</span> KnowledgeDetailPage</div>
+          <div class="tree-node indent-1"><span>├─</span> SettingsPage <span class="badge badge-green">OAuth flow</span></div>
+          <div class="tree-node indent-1"><span>└─</span> PlaygroundPage <span class="badge badge-cyan">retrieval tester</span></div>
+          <div class="tree-node"><span>└─</span><span class="label">components/</span></div>
+          <div class="tree-node indent-1"><span>├─</span> Layout.tsx</div>
+          <div class="tree-node indent-1"><span>├─</span> chat/ChatInterface.tsx</div>
+          <div class="tree-node indent-1"><span>└─</span> chat/CitationDrawer.tsx</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section>
+    <div class="eyebrow">AI Providers</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><div class="card-icon icon-green">🔑</div>API Key</div>
+        <div class="stack-row"><div><div class="stack-name">OpenAI</div><div class="stack-desc">GPT-4o · text-embedding-3-small/large</div></div><div class="stack-tag">llm + embed</div></div>
+        <div class="stack-row"><div><div class="stack-name">Anthropic</div><div class="stack-desc">Claude 3.5 Sonnet · Haiku · Opus</div></div><div class="stack-tag">llm</div></div>
+        <div class="stack-row"><div><div class="stack-name">Ollama</div><div class="stack-desc">Local models via baseUrl — no key required</div></div><div class="stack-tag">llm + embed</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="card-icon icon-cyan">🔐</div>OAuth2 PKCE</div>
+        <div class="stack-row"><div><div class="stack-name">Google / Gemini</div><div class="stack-desc">gemini-1.5-pro · text-embedding-004</div></div><div class="stack-tag">llm + embed</div></div>
+        <div class="stack-row"><div><div class="stack-name">Groq</div><div class="stack-desc">llama-3.1-70b · mixtral-8x7b</div></div><div class="stack-tag">llm</div></div>
+        <div style="margin-top:12px;padding:10px;background:var(--surface-2);border-radius:8px;font-size:11px;color:var(--muted)">
+          Popup window + poll-on-close · PKCE state with 10-min TTL · tokens AES-256-GCM encrypted before storage
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

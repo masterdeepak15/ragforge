@@ -1,0 +1,48 @@
+{
+  "name": "@ragforge/server",
+  "version": "1.0.0",
+  "description": "RAGForge backend server, dual-mode vector engine, and AI gateway",
+  "main": "./dist/index.js",
+  "bin": {
+    "ragforge": "./bin/ragforge.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.1",
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/jwt": "^9.0.1",
+    "@fastify/multipart": "^9.0.1",
+    "@fastify/static": "^8.0.2",
+    "@google/generative-ai": "^0.21.0",
+    "@mozilla/readability": "^0.5.0",
+    "@ragforge/shared": "*",
+    "bcryptjs": "^2.4.3",
+    "@libsql/client": "^0.14.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.33.0",
+    "fastify": "^5.0.0",
+    "groq-sdk": "^0.8.0",
+    "jsdom": "^25.0.1",
+    "mammoth": "^1.8.0",
+    "openai": "^4.67.3",
+    "pdf-parse": "^1.1.1",
+    "postgres": "^3.4.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.7.4",
+    "@types/pdf-parse": "^1.1.4",
+    "drizzle-kit": "^0.24.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "ragforge-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open-Source, Self-Hosted Knowledge Base & AI Agent Platform",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@ragforge/server & npm run dev --workspace=@ragforge/web",
+    "dev:server": "npm run dev --workspace=@ragforge/server",
+    "dev:web": "npm run dev --workspace=@ragforge/web",
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "start": "npm run start --workspace=@ragforge/server"
+  },
+  "keywords": [
+    "rag",
+    "knowledge-base",
+    "ai-agent",
+    "pgvector",
+    "sqlite",
+    "fastify",
+    "react19"
+  ],
+  "author": "Deepak & Claude",
+  "license": "MIT"
+}
