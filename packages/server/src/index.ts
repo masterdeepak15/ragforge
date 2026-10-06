@@ -22,6 +22,8 @@ import { documentRoutes } from './routes/document.routes.js';
 import { ingestionRoutes } from './routes/ingestion.routes.js';
 import { apiKeyRoutes } from './routes/apikey.routes.js';
 import { registerMcp } from './mcp/server.js';
+import { healthRoutes } from './routes/health.routes.js';
+import { loadConfig } from './config/env.js';
 import { resumableUploadRoutes, purgeStaleUploads } from './uploads/resumable.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
 import { playgroundRoutes } from './routes/playground.routes.js';
@@ -51,6 +53,7 @@ declare module 'fastify' {
     events: EventBus;
     jobs: JobQueue;
     worker: Worker;
+    workerEnabled: boolean;
   }
 }
 
@@ -85,6 +88,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   await migrateLegacyVectors(app.db);
   app.decorate('jobs', new JobQueue(app.db));
   app.decorate('worker', new Worker(app.jobs));
+  app.decorate('workerEnabled', options.startWorker ?? true);
   // Single process: any job still 'running' at boot was interrupted by a crash or restart.
   const recovered = await app.jobs.recoverStale(0);
   if (recovered > 0) app.log.info(`[RAGForge] Re-queued ${recovered} interrupted ingestion job(s)`);
@@ -177,6 +181,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
 
   // 6. API routes
+  await app.register(healthRoutes);
   await app.register(setupRoutes);
   await app.register(authRoutes);
   await app.register(providerRoutes);
@@ -219,7 +224,15 @@ export async function createApp(options: CreateAppOptions = {}) {
 }
 
 export async function startServer() {
-  const app = await createApp();
+  let config;
+  try {
+    config = loadConfig(process.env);
+  } catch (err) {
+    console.error(`[RAGForge] ${(err as Error).message}`);
+    process.exit(1);
+  }
+  for (const warning of config.warnings) console.warn(`[RAGForge] WARNING: ${warning}`);
+  const app = await createApp({ jwtSecret: config.jwtSecret });
 
   try {
     await app.listen({ port: PORT, host: '0.0.0.0' });

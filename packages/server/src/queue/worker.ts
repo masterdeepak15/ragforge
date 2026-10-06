@@ -24,6 +24,10 @@ export class Worker {
     this.pollMs = opts.pollMs ?? 500;
   }
 
+  get isRunning(): boolean {
+    return this.running;
+  }
+
   start({ concurrency, handler }: WorkerStartOptions): void {
     if (this.running) return;
     this.running = true;
