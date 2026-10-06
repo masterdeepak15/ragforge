@@ -121,7 +121,15 @@ export async function chatRoutes(app: FastifyInstance) {
               : `SELECT * FROM ai_providers WHERE is_default_llm = 1 LIMIT 1`,
             args: id ? [id] : [],
           });
-          return rs.rows[0] ?? null;
+          const row = rs.rows[0] as any;
+          if (!row) return null;
+          // The table uses snake_case columns; the chat service expects camelCase fields.
+          return {
+            provider: row.provider as string,
+            baseUrl: (row.base_url as string | null) ?? undefined,
+            apiKeyEncrypted: (row.api_key_encrypted as string | null) ?? undefined,
+            defaultLlmModel: (row.default_llm_model as string | null) ?? undefined,
+          };
         },
         async saveMessage(params) {
           await db().execute({
@@ -129,6 +137,14 @@ export async function chatRoutes(app: FastifyInstance) {
                   VALUES (?, ?, ?, ?, ?, ?, ?)`,
             args: [params.id, params.sessionId, params.role, params.content, params.citationsJson ?? null, params.tokenUsageJson ?? null, params.latencyMs ?? null],
           });
+        },
+        async getDocumentTitles(ids) {
+          if (ids.length === 0) return {};
+          const rs = await db().execute({
+            sql: `SELECT id, title FROM documents WHERE id IN (${ids.map(() => '?').join(',')})`,
+            args: ids,
+          });
+          return Object.fromEntries((rs.rows as any[]).map((r) => [r.id as string, r.title as string]));
         },
         retriever: app.retriever,
       });

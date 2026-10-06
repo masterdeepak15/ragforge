@@ -20,6 +20,8 @@ export interface ChatInput {
 export interface ChatServiceDeps {
   getProvider(id?: string): Promise<{ provider: string; baseUrl?: string; apiKeyEncrypted?: string; defaultLlmModel?: string } | null>;
   saveMessage(params: { id: string; sessionId: string; role: string; content: string; citationsJson?: string; tokenUsageJson?: string; latencyMs?: number }): Promise<void>;
+  /** Looks up document titles so citations name the file, not its id. */
+  getDocumentTitles?(ids: string[]): Promise<Record<string, string>>;
   retriever?: HybridRetriever;
 }
 
@@ -45,6 +47,11 @@ export class ChatService {
           similarityThreshold: input.similarityThreshold ?? 0.3,
           useHybridSearch: input.useHybridSearch ?? true,
         });
+
+        const titles = scoredChunks.length > 0 && this.deps.getDocumentTitles
+          ? await this.deps.getDocumentTitles([...new Set(scoredChunks.map((c) => c.documentId))])
+          : {};
+        scoredChunks.forEach((c) => { c.documentTitle = c.documentTitle ?? titles[c.documentId]; });
 
         if (scoredChunks.length > 0) {
           contextBlock = this.buildContextBlock(scoredChunks);

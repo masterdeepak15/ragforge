@@ -98,6 +98,14 @@ export default function ChatPage() {
     let assistantContent = '';
     const newCitations: Citation[] = [];
 
+    // The reply is added on first use, then updated as tokens arrive.
+    const showAssistant = (patch: Partial<ChatMessage>) =>
+      setMessages((prev) =>
+        prev.some((m) => m.id === assistantMsgId)
+          ? prev.map((m) => (m.id === assistantMsgId ? { ...m, ...patch } : m))
+          : [...prev, { id: assistantMsgId, session_id: currentSession.id, role: 'assistant' as const, content: '', created_at: new Date().toISOString(), ...patch }],
+      );
+
     try {
       for await (const event of apiStream(`/api/chat/sessions/${currentSession.id}/stream`, {
         message: content,
@@ -107,23 +115,13 @@ export default function ChatPage() {
         const ev = event as ChatStreamEvent;
         if (ev.type === 'token') {
           assistantContent += ev.token;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsgId
-                ? { ...m, content: assistantContent, role: 'assistant' as const }
-                : m
-            )
-          );
+          showAssistant({ content: assistantContent });
         } else if (ev.type === 'citation') {
           newCitations.push(ev.citation);
         } else if (ev.type === 'done') {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsgId
-                ? { ...m, citations: newCitations, role: 'assistant' as const }
-                : m
-            )
-          );
+          showAssistant({ citations: newCitations });
+        } else if (ev.type === 'error') {
+          showAssistant({ content: `I could not answer that. ${ev.error}` });
         }
       }
     } catch (e) {
