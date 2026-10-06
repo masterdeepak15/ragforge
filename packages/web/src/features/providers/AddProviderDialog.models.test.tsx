@@ -49,9 +49,10 @@ const openDialog = async () => {
 };
 
 describe('Add provider dialog: model choice', () => {
-  it('lets the user type a model until the connection has been tested, and says how to get a list', async () => {
-    setup(['llama3.2:3b']);
+  it('lets the user type a model until the provider can be asked (an API key is needed first)', async () => {
+    setup(['claude-a']);
     const dialog = await openDialog();
+    await userEvent.selectOptions(within(dialog).getByLabelText('Provider'), 'anthropic');
     expect(within(dialog).getByLabelText('Model for answers').tagName).toBe('INPUT');
     expect(within(dialog).getByText(/Test the connection to choose from the models this provider offers/)).toBeInTheDocument();
   });
@@ -90,5 +91,38 @@ describe('Add provider dialog: model choice', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add provider' }));
     await waitFor(() => expect(net.find('POST', /\/api\/providers$/)).toHaveLength(1));
     expect(net.find('POST', /\/api\/providers$/)[0].body).toMatchObject({ defaultLlmModel: 'qwen2.5:7b' });
+  });
+
+  describe('automatic model lookup', () => {
+    it('lists the models as soon as the dialog opens for a provider that needs no key', async () => {
+      const net = setup(['llama3.2:3b', 'nomic-embed-text:latest']);
+      const dialog = await openDialog();
+      const answers = await within(dialog).findByRole('combobox', { name: 'Model for answers' });
+      expect(within(answers).getAllByRole('option').map((o) => o.textContent)).toEqual(['llama3.2:3b']);
+      expect(net.find('POST', /providers\/test$/)).toHaveLength(1);
+    });
+
+    it('looks up the models once the API key has been entered', async () => {
+      const net = setup(['claude-sonnet-x', 'claude-haiku-x']);
+      const dialog = await openDialog();
+      await userEvent.selectOptions(within(dialog).getByLabelText('Provider'), 'anthropic');
+      expect(within(dialog).getByLabelText('Model for answers').tagName).toBe('INPUT');
+      await userEvent.type(within(dialog).getByLabelText('API key'), 'sk-ant-123');
+      await userEvent.tab(); // leaving the field starts the lookup
+
+      const answers = await within(dialog).findByRole('combobox', { name: 'Model for answers' });
+      expect(within(answers).getAllByRole('option').map((o) => o.textContent)).toEqual(['claude-sonnet-x', 'claude-haiku-x']);
+      const calls = net.find('POST', /providers\/test$/);
+      expect(calls.at(-1)?.body).toEqual({ provider: 'anthropic', apiKey: 'sk-ant-123' });
+    });
+
+    it('does not look anything up before a key is entered', async () => {
+      const net = setup(['x']);
+      const dialog = await openDialog();
+      await userEvent.selectOptions(within(dialog).getByLabelText('Provider'), 'anthropic');
+      await new Promise((r) => setTimeout(r, 50));
+      expect(net.find('POST', /providers\/test$/).filter((c) => (c.body as any).provider === 'anthropic')).toHaveLength(0);
+      void within(dialog);
+    });
   });
 });

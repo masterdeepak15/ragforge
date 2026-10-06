@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Database, Plus, Trash2 } from 'lucide-react';
+import { Database, ExternalLink, MessageSquare, MoreHorizontal, Plug, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ConfirmDialog } from '../components/ui/confirm-dialog';
 import { Dialog, DialogContent } from '../components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { EmptyState, ErrorState } from '../components/ui/empty-state';
 import { Input } from '../components/ui/input';
 import { PageHeader } from '../components/ui/page-header';
@@ -72,6 +73,13 @@ export default function KnowledgeBasesPage() {
   const kbs = (data ?? []) as KbSummary[];
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<KbSummary | null>(null);
+  const navigate = useNavigate();
+
+  const startChat = useMutation({
+    mutationFn: (kb: KbSummary) => api.post<{ id: string }>('/api/chat/sessions', { title: kb.name, knowledgeBaseId: kb.id }),
+    onSuccess: (session) => navigate(`/chat/${session.id}`),
+    onError: (err) => toast.error(`Could not start a chat. ${(err as Error).message}`),
+  });
 
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/knowledge-bases/${id}`),
@@ -127,9 +135,32 @@ export default function KnowledgeBasesPage() {
                 <TD className="hidden text-right tabular-nums sm:table-cell">{formatCount(kb.chunkCount ?? 0)}</TD>
                 <TD className="hidden text-muted-foreground md:table-cell">{timeAgo(kb.created_at)}</TD>
                 <TD className="text-right">
-                  <Button variant="ghost" size="icon" aria-label={`Delete ${kb.name}`} onClick={() => setDeleting(kb)}>
-                    <Trash2 />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label={`Actions for ${kb.name}`}>
+                        <MoreHorizontal />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem asChild>
+                        <Link to={`/knowledge-bases/${kb.id}`}>
+                          <ExternalLink aria-hidden /> Open
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => startChat.mutate(kb)}>
+                        <MessageSquare aria-hidden /> Ask in Chat
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/connect">
+                          <Plug aria-hidden /> Connect an AI tool
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem destructive onSelect={() => setDeleting(kb)}>
+                        <Trash2 aria-hidden /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TD>
               </TR>
             ))}

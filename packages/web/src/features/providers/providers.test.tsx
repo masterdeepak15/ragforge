@@ -24,6 +24,8 @@ function renderSection(providers: unknown[], extra: Route[] = []) {
     { method: 'GET', path: '/api/providers', handler: () => providers },
     { method: 'GET', path: '/api/providers/capabilities', handler: () => SPECS },
     ...extra,
+    // the dialog looks up models by itself; unless a test says otherwise the provider reports none
+    { method: 'POST', path: '/api/providers/test', handler: () => ({ ok: true, models: [] }) },
   ]);
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

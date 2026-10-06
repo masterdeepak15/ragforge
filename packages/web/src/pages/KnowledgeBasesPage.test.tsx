@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import KnowledgeBasesPage from './KnowledgeBasesPage';
 import { json, mockFetch } from '../test/fetch';
+
+vi.mock('../components/ui/dropdown-menu', () => import('../test/dropdown-menu.mock'));
 
 const KBS = [
   { id: 'kb1', name: 'Engineering handbook', description: 'Runbooks and postmortems', documentCount: 1284, chunkCount: 96410, created_at: '2026-10-01 09:00:00' },
@@ -19,6 +21,8 @@ function renderPage() {
         <Routes>
           <Route path="/knowledge-bases" element={<KnowledgeBasesPage />} />
           <Route path="/knowledge-bases/:id" element={<div>Detail of the new knowledge base</div>} />
+          <Route path="/chat/:id" element={<div>Chat session opened</div>} />
+          <Route path="/connect" element={<div>Connect page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -98,10 +102,49 @@ describe('KnowledgeBasesPage', () => {
     ]);
     renderPage();
     await screen.findByRole('link', { name: 'Support macros' });
-    await userEvent.click(screen.getByRole('button', { name: 'Delete Support macros' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Support macros' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Delete “Support macros”?' });
     expect(net.find('DELETE', /kb2/)).toHaveLength(0);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete knowledge base' }));
     await waitFor(() => expect(net.find('DELETE', /kb2/)).toHaveLength(1));
+  });
+
+  describe('row actions menu', () => {
+    const openMenu = async (name: string) => {
+      await screen.findByRole('link', { name });
+      await userEvent.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+      return screen.findByRole('menu');
+    };
+
+    it('offers open, chat, connect and delete for each knowledge base', async () => {
+      mockFetch([{ method: 'GET', path: '/api/knowledge-bases', handler: () => KBS }]);
+      renderPage();
+      const menu = await openMenu('Engineering handbook');
+      expect(within(menu).getByRole('menuitem', { name: 'Open' })).toHaveAttribute('href', '/knowledge-bases/kb1');
+      expect(within(menu).getByRole('menuitem', { name: 'Connect an AI tool' })).toHaveAttribute('href', '/connect');
+      expect(within(menu).getByRole('menuitem', { name: 'Ask in Chat' })).toBeInTheDocument();
+      expect(within(menu).getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+    });
+
+    it('starts a chat grounded in that knowledge base', async () => {
+      const net = mockFetch([
+        { method: 'GET', path: '/api/knowledge-bases', handler: () => KBS },
+        { method: 'POST', path: '/api/chat/sessions', handler: () => ({ id: 's9' }) },
+      ]);
+      renderPage();
+      const menu = await openMenu('Engineering handbook');
+      await userEvent.click(within(menu).getByRole('menuitem', { name: 'Ask in Chat' }));
+      expect(await screen.findByText('Chat session opened')).toBeInTheDocument();
+      expect(net.find('POST', /chat\/sessions$/)[0].body).toMatchObject({ knowledgeBaseId: 'kb1' });
+    });
+
+    it('navigates to the connect page', async () => {
+      mockFetch([{ method: 'GET', path: '/api/knowledge-bases', handler: () => KBS }]);
+      renderPage();
+      const menu = await openMenu('Support macros');
+      await userEvent.click(within(menu).getByRole('menuitem', { name: 'Connect an AI tool' }));
+      expect(await screen.findByText('Connect page')).toBeInTheDocument();
+    });
   });
 });

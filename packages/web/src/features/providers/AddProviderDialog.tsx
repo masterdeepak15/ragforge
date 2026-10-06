@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CheckCircle2, ExternalLink, XCircle } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent } from '../../components/ui/dialog';
@@ -35,6 +35,8 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
   const [error, setError] = useState('');
 
   const add = useAddProvider();
+  /** Only the newest lookup may change the form; an older answer for another provider is ignored. */
+  const lookup = useRef(0);
   const test = useTestSettings();
 
   // Each provider type has its own sensible defaults.
@@ -46,6 +48,9 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
     setEmbeddingModel(spec.defaultEmbeddingModel ?? '');
     setTested(null);
     setError('');
+    lookup.current++;
+    // A provider that needs no key can be asked for its models right away.
+    if (!spec.needsApiKey) void runTest({ provider: spec.type, ...(spec.defaultBaseUrl ? { baseUrl: spec.defaultBaseUrl } : {}) });
   }, [spec?.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!spec) return null;
@@ -58,10 +63,12 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
   const canSubmit = !spec.needsApiKey || apiKey.length > 0;
   const available = tested?.ok ? splitModels(tested.models) : null;
 
-  const runTest = async () => {
+  const runTest = async (explicit?: Record<string, unknown>) => {
+    const mine = ++lookup.current;
     setTested(null);
     try {
-      const result = await test.mutateAsync(settings());
+      const result = await test.mutateAsync(explicit ?? settings());
+      if (mine !== lookup.current) return;
       setTested(result);
       if (result.ok) {
         const { chat, embedding } = splitModels(result.models);
@@ -69,7 +76,7 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
         if (spec.supportsEmbeddings && embedding.length) setEmbeddingModel((m) => pickModel(embedding, m));
       }
     } catch (e) {
-      setTested({ ok: false, message: (e as Error).message });
+      if (mine === lookup.current) setTested({ ok: false, message: (e as Error).message });
     }
   };
 
@@ -118,7 +125,7 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
           {spec.needsApiKey && (
             <div className="space-y-1.5">
               <label htmlFor="prov-key" className="text-sm font-medium">API key</label>
-              <Input id="prov-key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your key" autoComplete="off" />
+              <Input id="prov-key" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} onBlur={() => apiKey && void runTest()} placeholder="Paste your key" autoComplete="off" />
               <p className="text-[13px] text-muted-foreground">
                 Stored encrypted.{' '}
                 {spec.keyHelpUrl && (
