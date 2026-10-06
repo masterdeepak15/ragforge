@@ -46,3 +46,8 @@ export function mockMatchMedia(initialDark = false) {
   };
 }
 mockMatchMedia(false);
+
+// jsdom does no layout, so every element measures 0x0 and virtualised lists render no rows.
+// Give elements a plausible size, as a real browser would.
+Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 560 });
+Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => 900 });

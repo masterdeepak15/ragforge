@@ -1,196 +1,153 @@
-import { useEffect, useState } from 'react';
-import { Plus, Database, FileText, Layers, Trash2, Loader2, X } from 'lucide-react';
-import { apiFetch } from '../lib/api';
-import { useNavigate } from 'react-router-dom';
-import type { KnowledgeBase } from '../types/api';
+import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Database, Plus, Trash2 } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { ConfirmDialog } from '../components/ui/confirm-dialog';
+import { Dialog, DialogContent } from '../components/ui/dialog';
+import { EmptyState, ErrorState } from '../components/ui/empty-state';
+import { Input } from '../components/ui/input';
+import { PageHeader } from '../components/ui/page-header';
+import { Skeleton } from '../components/ui/skeleton';
+import { Table, TBody, TD, TH, THead, TR } from '../components/ui/table';
+import { toast } from '../components/ui/toaster';
+import { api } from '../lib/api-client';
+import { formatCount, timeAgo } from '../lib/format';
+import { queryKeys, useKnowledgeBases } from '../lib/queries';
+import type { KbSummary } from '../features/knowledge/types';
 
-export default function KnowledgeBasesPage() {
+function NewKnowledgeBaseDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
-  const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '' });
-  const [error, setError] = useState('');
+  const qc = useQueryClient();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
 
-  useEffect(() => {
-    loadKbs();
-  }, []);
+  const create = useMutation({
+    mutationFn: () => api.post<{ id: string; name: string }>('/api/knowledge-bases', { name: name.trim(), description: description.trim() }),
+    onSuccess: (kb) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeBases });
+      toast.success(`Created “${kb.name}”`);
+      onOpenChange(false);
+      setName('');
+      setDescription('');
+      navigate(`/knowledge-bases/${kb.id}`);
+    },
+  });
 
-  const loadKbs = async () => {
-    try {
-      const data = await apiFetch<KnowledgeBase[]>('/api/knowledge-bases');
-      setKbs(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) create.mutate();
   };
-
-  const createKb = async () => {
-    if (!form.name.trim()) return;
-    setCreating(true);
-    setError('');
-    try {
-      const kb = await apiFetch<KnowledgeBase>('/api/knowledge-bases', {
-        method: 'POST',
-        json: form,
-      });
-      setKbs((prev) => [kb, ...prev]);
-      setShowCreate(false);
-      setForm({ name: '', description: '' });
-    } catch (e: any) {
-      setError(e.message || 'Failed to create knowledge base');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const deleteKb = async (id: string) => {
-    if (!confirm('Delete this knowledge base and all its documents?')) return;
-    try {
-      await apiFetch(`/api/knowledge-bases/${id}`, { method: 'DELETE' });
-      setKbs((prev) => prev.filter((kb) => kb.id !== id));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
-      </div>
-    );
-  }
 
   return (
-    <div className="p-6 h-full overflow-y-auto bg-background">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Knowledge Bases</h1>
-            <p className="text-muted-foreground mt-1">Organize and manage your document collections</p>
+    <Dialog open={open} onOpenChange={(next) => !create.isPending && onOpenChange(next)}>
+      <DialogContent title="New knowledge base" description="A knowledge base is a collection of documents your assistants can search.">
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="kb-name" className="text-sm font-medium">Name</label>
+            <Input id="kb-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Engineering handbook" autoFocus maxLength={100} />
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Knowledge Base
-          </button>
-        </div>
+          <div className="space-y-1.5">
+            <label htmlFor="kb-description" className="text-sm font-medium">Description</label>
+            <Input id="kb-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Runbooks, postmortems and architecture notes" />
+          </div>
+          {create.isError && (
+            <p role="alert" className="text-sm text-destructive">
+              {(create.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={create.isPending}>Cancel</Button>
+            <Button type="submit" disabled={!name.trim()} loading={create.isPending}>Create knowledge base</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-        {kbs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-              <Database className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">No knowledge bases yet</h3>
-            <p className="text-muted-foreground mb-6">Create one to start uploading documents</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors"
-            >
-              Create Knowledge Base
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+export default function KnowledgeBasesPage() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError, error, refetch } = useKnowledgeBases();
+  const kbs = (data ?? []) as KbSummary[];
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<KbSummary | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.del(`/api/knowledge-bases/${id}`),
+    onSuccess: () => {
+      toast.success(`Deleted “${deleting?.name}”`);
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeBases });
+      setDeleting(null);
+    },
+    onError: (err) => toast.error((err as Error).message),
+  });
+
+  const newButton = (
+    <Button onClick={() => setCreating(true)}>
+      <Plus /> New knowledge base
+    </Button>
+  );
+
+  return (
+    <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
+      <PageHeader title="Knowledge bases" description="Collections of documents your assistants can search." actions={newButton} />
+
+      {isLoading ? (
+        <div data-testid="kb-loading" className="space-y-2 rounded-lg border border-border bg-card p-3">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-11 w-full" />
+          ))}
+        </div>
+      ) : isError ? (
+        <ErrorState title="Could not load knowledge bases" message={(error as Error).message} onRetry={() => void refetch()} />
+      ) : kbs.length === 0 ? (
+        <EmptyState icon={Database} title="No knowledge bases yet" description="Create one, then drop in your PDFs, Word files and notes. They are indexed in the background." action={newButton} />
+      ) : (
+        <Table aria-label="Knowledge bases">
+          <THead>
+            <TR>
+              <TH>Name</TH>
+              <TH className="text-right">Documents</TH>
+              <TH className="hidden text-right sm:table-cell">Chunks</TH>
+              <TH className="hidden md:table-cell">Created</TH>
+              <TH className="w-12" />
+            </TR>
+          </THead>
+          <TBody>
             {kbs.map((kb) => (
-              <div
-                key={kb.id}
-                onClick={() => navigate(`/knowledge-bases/${kb.id}`)}
-                className="bg-card border border-border rounded-xl p-5 hover:border-primary/40 cursor-pointer transition-all group"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
-                    <Database className="w-5 h-5 text-primary" />
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteKb(kb.id); }}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                <h3 className="font-semibold text-foreground mb-1">{kb.name}</h3>
-                {kb.description && (
-                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{kb.description}</p>
-                )}
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5" />
-                    {kb.document_count ?? 0} docs
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" />
-                    {kb.chunk_count ?? 0} chunks
-                  </span>
-                </div>
-              </div>
+              <TR key={kb.id} className="hover:bg-muted/40">
+                <TD>
+                  <Link to={`/knowledge-bases/${kb.id}`} className="font-semibold hover:text-primary">
+                    {kb.name}
+                  </Link>
+                  {kb.description && <p className="mt-0.5 line-clamp-1 text-[13px] text-muted-foreground">{kb.description}</p>}
+                </TD>
+                <TD className="text-right tabular-nums">{formatCount(kb.documentCount ?? 0)}</TD>
+                <TD className="hidden text-right tabular-nums sm:table-cell">{formatCount(kb.chunkCount ?? 0)}</TD>
+                <TD className="hidden text-muted-foreground md:table-cell">{timeAgo(kb.created_at)}</TD>
+                <TD className="text-right">
+                  <Button variant="ghost" size="icon" aria-label={`Delete ${kb.name}`} onClick={() => setDeleting(kb)}>
+                    <Trash2 />
+                  </Button>
+                </TD>
+              </TR>
             ))}
-          </div>
-        )}
-      </div>
-
-      {/* Create modal */}
-      {showCreate && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-card rounded-xl border border-border p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-foreground">New Knowledge Base</h2>
-              <button
-                onClick={() => setShowCreate(false)}
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1.5">Name</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="My Knowledge Base"
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1.5">Description (optional)</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="What documents will you store here?"
-                  rows={3}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
-                />
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setShowCreate(false)}
-                  className="flex-1 px-4 py-2 bg-muted hover:bg-muted text-foreground rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={createKb}
-                  disabled={!form.name.trim() || creating}
-                  className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+          </TBody>
+        </Table>
       )}
+
+      <NewKnowledgeBaseDialog open={creating} onOpenChange={setCreating} />
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={`Delete “${deleting?.name ?? ''}”?`}
+        description={`All ${formatCount(deleting?.documentCount ?? 0)} documents and their search data are removed. This can't be undone.`}
+        confirmLabel="Delete knowledge base"
+        destructive
+        pending={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting.id)}
+      />
     </div>
   );
 }

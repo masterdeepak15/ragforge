@@ -1,268 +1,264 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft, Upload, FileText, Loader2, Trash2, CheckCircle,
-  XCircle, Clock, Layers, ChevronDown, ChevronRight, Link
-} from 'lucide-react';
-import { apiFetch, apiUpload } from '../lib/api';
-import type { KnowledgeBase, Document, DocumentChunk } from '../types/api';
+import { useCallback, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link2, Upload } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { ConfirmDialog } from '../components/ui/confirm-dialog';
+import { Dialog, DialogContent } from '../components/ui/dialog';
+import { EmptyState, ErrorState } from '../components/ui/empty-state';
+import { Input } from '../components/ui/input';
+import { PageHeader } from '../components/ui/page-header';
+import { Skeleton } from '../components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { toast } from '../components/ui/toaster';
+import { ApiError, api } from '../lib/api-client';
+import { formatBytes, formatCount } from '../lib/format';
+import { queryKeys } from '../lib/queries';
+import { uploadFiles, type UploadHandle, type UploadItem } from '../lib/upload';
+import { ChunkInspector } from '../features/knowledge/ChunkInspector';
+import { DocumentsTable } from '../features/knowledge/DocumentsTable';
+import { ProcessingTable } from '../features/knowledge/ProcessingTable';
+import { UploadDropzone, type UploadDropzoneHandle } from '../features/knowledge/UploadDropzone';
+import { useIngestionEvents } from '../features/knowledge/events';
+import { useCancelJob, useDeleteDocuments, useDocuments, useJobs, useKnowledgeBase, useRetryJob } from '../features/knowledge/queries';
+import type { DocumentFilters, DocumentRow } from '../features/knowledge/types';
 
-const STATUS_ICON = {
-  pending: <Clock className="w-4 h-4 text-muted-foreground" />,
-  processing: <Loader2 className="w-4 h-4 text-warning animate-spin" />,
-  ready: <CheckCircle className="w-4 h-4 text-primary" />,
-  error: <XCircle className="w-4 h-4 text-destructive" />,
-};
+function AddUrlDialog({ kbId, open, onOpenChange }: { kbId: string; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const qc = useQueryClient();
+  const [url, setUrl] = useState('');
+  const add = useMutation({
+    mutationFn: () => {
+      const form = new FormData();
+      form.append('knowledgeBaseId', kbId);
+      form.append('url', url.trim());
+      return api.request<{ items: Array<{ deduplicated: boolean }> }>('POST', '/api/documents/upload', form);
+    },
+    onSuccess: (res) => {
+      toast.success(res.items[0]?.deduplicated ? 'That page is already in this knowledge base' : 'Page added. It will be indexed in the background.');
+      for (const key of ['documents', 'jobs', 'kb']) void qc.invalidateQueries({ queryKey: [key, kbId] });
+      setUrl('');
+      onOpenChange(false);
+    },
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (url.trim()) add.mutate();
+  };
+  return (
+    <Dialog open={open} onOpenChange={(next) => !add.isPending && onOpenChange(next)}>
+      <DialogContent title="Add a web page" description="The page's readable text is fetched and indexed.">
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="page-url" className="text-sm font-medium">Page address</label>
+            <Input id="page-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/docs/getting-started" autoFocus />
+          </div>
+          {add.isError && (
+            <p role="alert" className="text-sm text-destructive">
+              {(add.error as Error).message}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={add.isPending}>Cancel</Button>
+            <Button type="submit" disabled={!url.trim()} loading={add.isPending}>Add page</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function KnowledgeDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: kbId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [kb, setKb] = useState<KnowledgeBase | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState('');
-  const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
-  const [chunks, setChunks] = useState<Record<string, DocumentChunk[]>>({});
-  const [urlInput, setUrlInput] = useState('');
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  const qc = useQueryClient();
 
-  useEffect(() => {
-    if (id) loadData();
-  }, [id]);
+  const kbQuery = useKnowledgeBase(kbId);
+  const [filters, setFilters] = useState<DocumentFilters>({ status: 'all', q: '' });
+  const docsQuery = useDocuments(kbId, filters);
+  const jobsQuery = useJobs(kbId);
+  useIngestionEvents(kbId);
 
-  const loadData = async () => {
-    try {
-      const [kbData, docsData] = await Promise.all([
-        apiFetch<KnowledgeBase>(`/api/knowledge-bases/${id}`),
-        apiFetch<Document[]>(`/api/knowledge-bases/${id}/documents`),
-      ]);
-      setKb(kbData);
-      setDocuments(docsData);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const retryJob = useRetryJob(kbId ?? '');
+  const cancelJob = useCancelJob(kbId ?? '');
+  const deleteDocs = useDeleteDocuments(kbId ?? '');
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !files.length) return;
-    setUploading(true);
-    try {
-      for (const file of Array.from(files)) {
-        setUploadProgress(`Uploading ${file.name}...`);
-        const form = new FormData();
-        form.append('knowledgeBaseId', id!); // must precede the file part
-        form.append('file', file);
-        await apiUpload<Document>('/api/documents/upload', form);
-      }
-      await loadData();
-    } catch (e: any) {
-      setUploadProgress(`Error: ${e.message}`);
-    } finally {
-      setUploading(false);
-      setUploadProgress('');
-      e.target.value = '';
-    }
-  };
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const handles = useRef<UploadHandle[]>([]);
+  const dropzone = useRef<UploadDropzoneHandle>(null);
+  const [inspecting, setInspecting] = useState<DocumentRow | null>(null);
+  const [addingUrl, setAddingUrl] = useState(false);
+  const [deletingKb, setDeletingKb] = useState(false);
 
-  const handleUrlIngest = async () => {
-    if (!urlInput.trim()) return;
-    setUploading(true);
-    setUploadProgress(`Fetching ${urlInput}...`);
-    try {
-      const form = new FormData();
-      form.append('url', urlInput);
-      form.append('knowledgeBaseId', id!);
-      await apiUpload<Document>('/api/documents/upload', form);
-      setUrlInput('');
-      setShowUrlInput(false);
-      await loadData();
-    } catch (e: any) {
-      setUploadProgress(`Error: ${e.message}`);
-    } finally {
-      setUploading(false);
-      setUploadProgress('');
-    }
-  };
+  const removeKb = useMutation({
+    mutationFn: () => api.del(`/api/knowledge-bases/${kbId}`),
+    onSuccess: () => {
+      toast.success(`Deleted “${kbQuery.data?.name}”`);
+      void qc.invalidateQueries({ queryKey: queryKeys.knowledgeBases });
+      navigate('/knowledge-bases');
+    },
+    onError: (err) => toast.error((err as Error).message),
+  });
 
-  const deleteDocument = async (docId: string) => {
-    if (!confirm('Delete this document and all its chunks?')) return;
-    try {
-      await apiFetch(`/api/documents/${docId}`, { method: 'DELETE' });
-      setDocuments((prev) => prev.filter((d) => d.id !== docId));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const startUpload = useCallback(
+    (files: File[]) => {
+      if (!kbId) return;
+      const handle = uploadFiles(files, kbId, (item) =>
+        setUploads((prev) => (prev.some((u) => u.id === item.id) ? prev.map((u) => (u.id === item.id ? item : u)) : [...prev, item])),
+      );
+      handles.current.push(handle);
+      void handle.done.then(() => {
+        for (const key of ['documents', 'jobs', 'kb']) void qc.invalidateQueries({ queryKey: [key, kbId] });
+        void qc.invalidateQueries({ queryKey: queryKeys.knowledgeBases });
+        toast.success(files.length === 1 ? `Uploaded ${files[0].name}` : `Uploaded ${formatCount(files.length)} files. Indexing continues in the background.`);
+      });
+    },
+    [kbId, qc],
+  );
 
-  const toggleChunks = async (docId: string) => {
-    if (expandedDoc === docId) {
-      setExpandedDoc(null);
-      return;
-    }
-    setExpandedDoc(docId);
-    if (!chunks[docId]) {
-      try {
-        const data = await apiFetch<{ chunks: DocumentChunk[] }>(`/api/documents/${docId}/chunks`);
-        setChunks((prev) => ({ ...prev, [docId]: data.chunks }));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
+  const loadMore = useCallback(() => {
+    if (docsQuery.hasNextPage && !docsQuery.isFetchingNextPage) void docsQuery.fetchNextPage();
+  }, [docsQuery]);
 
-  if (loading) {
+  if (kbQuery.isError) {
+    const notFound = kbQuery.error instanceof ApiError && kbQuery.error.status === 404;
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+      <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
+        {notFound ? (
+          <EmptyState
+            icon={Upload}
+            title="Knowledge base not found"
+            description="It may have been deleted."
+            action={
+              <Button asChild variant="secondary">
+                <Link to="/knowledge-bases">Back to knowledge bases</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <ErrorState title="Could not load this knowledge base" message={(kbQuery.error as Error).message} onRetry={() => void kbQuery.refetch()} />
+        )}
       </div>
     );
   }
 
+  const kb = kbQuery.data;
+  const first = docsQuery.data?.pages[0];
+  const items = docsQuery.data?.pages.flatMap((p) => p.items) ?? [];
+  const stats = first?.stats;
+  const processing = (first?.counts.processing ?? 0) + (first?.counts.pending ?? 0);
+
+  const summary = stats
+    ? [
+        `${formatCount(stats.readyDocuments)} ${stats.readyDocuments === 1 ? 'document' : 'documents'} ready`,
+        `${formatCount(stats.chunks)} ${stats.chunks === 1 ? 'chunk' : 'chunks'}`,
+        formatBytes(stats.bytes),
+        ...(processing > 0 ? [`${formatCount(processing)} processing`] : []),
+      ].join(' · ')
+    : undefined;
+
   return (
-    <div className="p-6 h-full overflow-y-auto bg-background">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => navigate('/knowledge-bases')}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold text-foreground">{kb?.name}</h1>
-            {kb?.description && <p className="text-sm text-muted-foreground">{kb.description}</p>}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowUrlInput(!showUrlInput)}
-              className="flex items-center gap-2 px-3 py-2 bg-muted hover:bg-muted text-foreground text-sm rounded-lg transition-colors"
-            >
-              <Link className="w-4 h-4" />
-              URL
-            </button>
-            <label className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg cursor-pointer transition-colors">
-              <Upload className="w-4 h-4" />
-              Upload
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.docx,.txt,.md"
-                onChange={handleFileUpload}
-                className="hidden"
-                disabled={uploading}
-              />
-            </label>
-          </div>
+    <div className="mx-auto max-w-5xl px-5 py-6 md:px-8">
+      {kb ? (
+        <PageHeader
+          crumbs={[{ label: 'Knowledge bases', to: '/knowledge-bases' }, { label: kb.name }]}
+          title={kb.name}
+          description={
+            <>
+              {kb.description && <span className="block">{kb.description}</span>}
+              <span className="block">{summary ?? <Skeleton className="mt-1 inline-block h-4 w-64 align-middle" />}</span>
+            </>
+          }
+          actions={
+            <>
+              <Button variant="secondary" onClick={() => setAddingUrl(true)}>
+                <Link2 /> Add URL
+              </Button>
+              <Button onClick={() => dropzone.current?.open()}>
+                <Upload /> Upload files
+              </Button>
+            </>
+          }
+        />
+      ) : (
+        <div className="mb-6 space-y-2">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-8 w-72" />
         </div>
+      )}
 
-        {/* URL input */}
-        {showUrlInput && (
-          <div className="mb-4 flex gap-2">
-            <input
-              type="url"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUrlIngest()}
-              placeholder="https://example.com/page"
-              className="flex-1 px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring text-sm"
+      <Tabs defaultValue="documents">
+        <TabsList className="mb-5">
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="documents" className="space-y-6">
+          <UploadDropzone ref={dropzone} onFiles={startUpload} />
+          <ProcessingTable
+            uploads={uploads}
+            jobs={jobsQuery.data ?? []}
+            onRetry={(jobId) => retryJob.mutate(jobId, { onError: (e) => toast.error((e as Error).message) })}
+            onCancelJob={(jobId) => cancelJob.mutate(jobId, { onError: (e) => toast.error((e as Error).message) })}
+            onCancelUploads={() => handles.current.forEach((h) => h.cancel())}
+            onClearUploads={() => setUploads((prev) => prev.filter((u) => u.status === 'uploading' || u.status === 'queued'))}
+          />
+          {docsQuery.isError ? (
+            <ErrorState title="Could not load documents" message={(docsQuery.error as Error).message} onRetry={() => void docsQuery.refetch()} />
+          ) : (
+            <DocumentsTable
+              items={items}
+              total={first?.total ?? 0}
+              counts={first?.counts ?? { ready: 0, failed: 0, processing: 0, pending: 0 }}
+              filters={filters}
+              onFiltersChange={setFilters}
+              hasMore={!!docsQuery.hasNextPage}
+              loading={docsQuery.isLoading || docsQuery.isFetchingNextPage}
+              onLoadMore={loadMore}
+              onViewChunks={setInspecting}
+              onDelete={async (ids) => {
+                try {
+                  const res = await deleteDocs.mutateAsync(ids);
+                  toast.success(`Deleted ${formatCount(res.deleted)} ${res.deleted === 1 ? 'document' : 'documents'}`);
+                } catch (err) {
+                  toast.error((err as Error).message);
+                  throw err;
+                }
+              }}
             />
-            <button
-              onClick={handleUrlIngest}
-              disabled={!urlInput.trim() || uploading}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground text-sm rounded-lg transition-colors"
-            >
-              Ingest
-            </button>
-          </div>
-        )}
+          )}
+        </TabsContent>
 
-        {/* Upload progress */}
-        {uploading && (
-          <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-muted rounded-lg text-sm text-foreground/80">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            {uploadProgress || 'Processing...'}
-          </div>
-        )}
+        <TabsContent value="settings" className="space-y-6">
+          <section className="rounded-lg border border-border bg-card p-5">
+            <h2 className="text-sm font-semibold">Indexing</h2>
+            <p className="mt-1 text-sm text-muted-foreground">These are fixed when documents are indexed.</p>
+            <dl className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+              <div><dt className="text-muted-foreground">Embedding model</dt><dd className="font-medium">{kb?.embedding_model ?? '—'}</dd></div>
+              <div><dt className="text-muted-foreground">Vector dimension</dt><dd className="font-medium">{kb?.embedding_dimension ?? '—'}</dd></div>
+              <div><dt className="text-muted-foreground">Chunk size</dt><dd className="font-medium">{formatCount(kb?.chunk_size ?? 0)} tokens</dd></div>
+              <div><dt className="text-muted-foreground">Chunk overlap</dt><dd className="font-medium">{formatCount(kb?.chunk_overlap ?? 0)} tokens</dd></div>
+            </dl>
+          </section>
+          <section className="rounded-lg border border-destructive/30 bg-card p-5">
+            <h2 className="text-sm font-semibold text-destructive">Delete this knowledge base</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Removes every document and its search data. Connected AI tools lose access to it.</p>
+            <Button variant="destructive" className="mt-4" onClick={() => setDeletingKb(true)}>Delete knowledge base</Button>
+          </section>
+        </TabsContent>
+      </Tabs>
 
-        {/* Documents list */}
-        {documents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">No documents yet</h3>
-            <p className="text-muted-foreground">Upload PDFs, Word docs, text files, or ingest a URL</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {documents.map((doc) => (
-              <div key={doc.id} className="bg-card border border-border rounded-xl overflow-hidden">
-                <div className="flex items-center gap-3 px-4 py-3">
-                  {STATUS_ICON[doc.status as keyof typeof STATUS_ICON] ?? STATUS_ICON.pending}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {doc.chunk_count ?? 0} chunks · {doc.status}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => toggleChunks(doc.id)}
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                      title="View chunks"
-                    >
-                      {expandedDoc === doc.id ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => deleteDocument(doc.id)}
-                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Chunk inspector */}
-                {expandedDoc === doc.id && (
-                  <div className="border-t border-border bg-background/50 p-4">
-                    {!chunks[doc.id] ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading chunks...
-                      </div>
-                    ) : chunks[doc.id].length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No chunks found</p>
-                    ) : (
-                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                        {chunks[doc.id].map((chunk, i) => (
-                          <div key={chunk.id} className="text-xs bg-muted rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <Layers className="w-3 h-3 text-muted-foreground" />
-                              <span className="text-muted-foreground">Chunk {i + 1}</span>
-                              <span className="text-muted-foreground">·</span>
-                              <span className="text-muted-foreground">{chunk.token_count ?? '?'} tokens</span>
-                            </div>
-                            <p className="text-foreground/80 leading-relaxed line-clamp-4">
-                              {chunk.content}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {kbId && <AddUrlDialog kbId={kbId} open={addingUrl} onOpenChange={setAddingUrl} />}
+      <ChunkInspector doc={inspecting} onClose={() => setInspecting(null)} />
+      <ConfirmDialog
+        open={deletingKb}
+        onOpenChange={setDeletingKb}
+        title={`Delete “${kb?.name ?? ''}”?`}
+        description="All documents and their search data are removed. This can't be undone."
+        confirmLabel="Delete knowledge base"
+        destructive
+        pending={removeKb.isPending}
+        onConfirm={() => removeKb.mutate()}
+      />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import jwt from '@fastify/jwt';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { createDatabaseContext, runMigrations } from './db/connection.js';
 import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
@@ -65,6 +66,8 @@ export interface CreateAppOptions {
   logLevel?: string;
   /** Start the ingestion worker (disabled by default in tests). */
   startWorker?: boolean;
+  /** Directory holding the built web app (default WEB_DIR env or packages/web/dist under the working directory). */
+  webDir?: string;
   /** MCP requests per minute per API key (default MCP_RATE_LIMIT env or 60). */
   mcpRateLimit?: number;
   /** Register SIGINT/SIGTERM handlers (disabled in tests). */
@@ -173,12 +176,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
 
   // 5. Static assets (serve React build)
-  const webBuildPath = join(process.cwd(), 'packages/web/dist');
-  await app.register(fastifyStatic, {
-    root: webBuildPath,
-    prefix: '/',
-    decorateReply: false,
-  });
+  const webBuildPath = options.webDir ?? process.env.WEB_DIR ?? join(process.cwd(), 'packages/web/dist');
+  const serveWeb = existsSync(join(webBuildPath, 'index.html'));
+  if (serveWeb) {
+    // decorateReply must stay on: the SPA fallback below uses reply.sendFile.
+    await app.register(fastifyStatic, { root: webBuildPath, prefix: '/' });
+  } else {
+    app.log.warn(`[RAGForge] No web build found at ${webBuildPath}; serving the API only (run \`npm run build\`).`);
+  }
 
   // 6. API routes
   await app.register(healthRoutes);
@@ -198,8 +203,8 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // 7. Catch-all for React routing (SPA)
   app.setNotFoundHandler((req, reply) => {
-    if (req.url.startsWith('/api/')) {
-      reply.status(404).send({ error: 'API endpoint not found' });
+    if (req.url.startsWith('/api/') || !serveWeb) {
+      reply.status(404).send({ error: req.url.startsWith('/api/') ? 'API endpoint not found' : 'Not found' });
     } else {
       reply.sendFile('index.html');
     }

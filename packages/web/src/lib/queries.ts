@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './api-client';
-import type { KnowledgeBase } from '../types/api';
+import type { KbSummary } from '../features/knowledge/types';
 
 export const queryKeys = {
   knowledgeBases: ['knowledge-bases'] as const,
@@ -9,6 +9,6 @@ export const queryKeys = {
 export function useKnowledgeBases() {
   return useQuery({
     queryKey: queryKeys.knowledgeBases,
-    queryFn: () => api.get<KnowledgeBase[]>('/api/knowledge-bases'),
+    queryFn: () => api.get<KbSummary[]>('/api/knowledge-bases'),
   });
 }
