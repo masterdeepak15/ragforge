@@ -9,6 +9,7 @@ import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
 import { InProcessEventBus, type EventBus } from './events/event-bus.js';
 import { JobQueue } from './queue/job-queue.js';
 import { Worker } from './queue/worker.js';
+import { ingestDocument } from './services/ingestion.handler.js';
 import { createKeywordIndex } from './core/search/fts.js';
 import { migrateLegacyVectors } from './core/vector/migrate-legacy.js';
 import { ProviderFactory } from './core/providers/factory.js';
@@ -56,6 +57,8 @@ export interface CreateAppOptions {
   dataDir?: string;
   jwtSecret?: string;
   logLevel?: string;
+  /** Start the ingestion worker (disabled by default in tests). */
+  startWorker?: boolean;
   /** Register SIGINT/SIGTERM handlers (disabled in tests). */
   signalHandlers?: boolean;
 }
@@ -80,6 +83,19 @@ export async function createApp(options: CreateAppOptions = {}) {
   // Single process: any job still 'running' at boot was interrupted by a crash or restart.
   const recovered = await app.jobs.recoverStale(0);
   if (recovered > 0) app.log.info(`[RAGForge] Re-queued ${recovered} interrupted ingestion job(s)`);
+
+  if (options.startWorker ?? true) {
+    const concurrency = Math.max(1, Number(process.env.INGEST_CONCURRENCY) || 2);
+    app.worker.start({
+      concurrency,
+      handler: (job, signal) =>
+        ingestDocument(job, { db: app.db, vectorStore: app.db.vectorStore, events: app.events, jobs: app.jobs, dataDir: app.dataDir }, signal),
+    });
+    app.events.subscribe((e) => {
+      if (e.type === 'document.uploaded') app.worker.wake();
+    });
+    app.log.info(`[RAGForge] Ingestion worker started (concurrency ${concurrency})`);
+  }
 
   // 2. Initialize retrieval engine
   app.retriever = new HybridRetriever({

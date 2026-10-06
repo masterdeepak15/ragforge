@@ -114,5 +114,7 @@ export function chunkText(
     });
   }
 
-  return chunks.filter(c => c.content.length > 20);
+  // Drop tiny noise fragments, but never discard a whole short document.
+  const substantial = chunks.filter(c => c.content.length > 20);
+  return substantial.length > 0 ? substantial : chunks.filter(c => c.content.length > 0);
 }

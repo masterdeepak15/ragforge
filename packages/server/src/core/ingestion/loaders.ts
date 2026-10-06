@@ -7,14 +7,13 @@ export interface LoadedDocument {
 }
 
 // --- PDF Loader ---
+// unpdf (maintained PDF.js build). The previous pdf-parse 1.x bundled a decade-old PDF.js that
+// rejects valid PDFs on current Node versions ("bad XRef entry").
 export async function loadPdf(buffer: Buffer): Promise<LoadedDocument> {
-  // Dynamic import to avoid issues if pdf-parse isn't available in all envs
-  const pdfParse = (await import('pdf-parse')).default;
-  const result = await pdfParse(buffer);
-  return {
-    text: result.text,
-    metadata: { pageCount: result.numpages },
-  };
+  const { getDocumentProxy, extractText } = await import('unpdf');
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const { totalPages, text } = await extractText(pdf, { mergePages: true });
+  return { text, metadata: { pageCount: totalPages } };
 }
 
 // --- DOCX Loader ---

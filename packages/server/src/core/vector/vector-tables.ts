@@ -13,8 +13,11 @@ export function vectorTableName(knowledgeBaseId: string): string {
   return `cv_${knowledgeBaseId.replace(/-/g, '_')}`;
 }
 
+/** Embedding length disagrees with the knowledge base's vector table; retrying cannot help. */
+export class EmbeddingDimensionError extends Error {}
+
 export function dimensionMismatch(knowledgeBaseId: string, expected: number, got: number): Error {
-  return new Error(
+  return new EmbeddingDimensionError(
     `Embedding dimension mismatch for knowledge base ${knowledgeBaseId}: expected ${expected}, got ${got}. ` +
       `The embedding model changed after documents were indexed; re-create the knowledge base or switch back to the original model.`
   );
