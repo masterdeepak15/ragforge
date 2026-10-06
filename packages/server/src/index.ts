@@ -6,6 +6,7 @@ import fastifyStatic from '@fastify/static';
 import { join } from 'path';
 import { createDatabaseContext, runMigrations } from './db/connection.js';
 import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
+import { InProcessEventBus, type EventBus } from './events/event-bus.js';
 import { createKeywordIndex } from './core/search/fts.js';
 import { migrateLegacyVectors } from './core/vector/migrate-legacy.js';
 import { ProviderFactory } from './core/providers/factory.js';
@@ -41,6 +42,7 @@ declare module 'fastify' {
     retriever: HybridRetriever;
     authenticate: any;
     dataDir: string;
+    events: EventBus;
   }
 }
 
@@ -58,6 +60,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   const storageMode = options.storageMode ?? STORAGE_MODE;
   const app = Fastify({ logger: { level: options.logLevel ?? 'info' } });
   app.decorate('dataDir', options.dataDir ?? process.env.DATA_DIR ?? join(process.cwd(), 'data'));
+
+  app.decorate('events', new InProcessEventBus());
 
   // 1. Database setup
   app.log.info(`[RAGForge] Connecting to ${storageMode} database...`);
