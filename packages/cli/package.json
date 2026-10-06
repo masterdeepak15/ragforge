@@ -1,16 +1,31 @@
 {
-  "name": "@ragforge/server",
+  "name": "@masterdeepak15/ragforge",
   "version": "1.0.0",
-  "description": "RAGForge backend server, dual-mode vector engine, and AI gateway",
+  "description": "RAGForge: a self-hosted knowledge base with cited answers and an MCP server, installed and managed from the command line.",
   "type": "module",
-  "main": "./dist/index.js",
+  "license": "MIT",
+  "author": "Deepak & Claude",
+  "keywords": [
+    "rag",
+    "knowledge-base",
+    "mcp",
+    "ollama",
+    "self-hosted",
+    "cli"
+  ],
   "bin": {
-    "ragforge": "./bin/ragforge.js"
+    "ragforge": "./bin/ragforge.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
+    "bundle": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -25,7 +40,6 @@
     "@libsql/client": "^0.14.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@mozilla/readability": "^0.5.0",
-    "@ragforge/shared": "*",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
@@ -40,25 +54,9 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsdom": "^21.1.7",
     "@types/node": "^22.7.4",
-    "@types/pdfkit": "^0.17.6",
-    "drizzle-kit": "^0.24.2",
-    "pdfkit": "^0.15.2",
-    "tsx": "^4.19.1",
+    "esbuild": "^0.21.5",
     "typescript": "^5.6.2",
     "vitest": "^2.1.9"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./admin": {
-      "types": "./dist/admin.d.ts",
-      "default": "./dist/admin.js"
-    },
-    "./package.json": "./package.json"
   }
 }

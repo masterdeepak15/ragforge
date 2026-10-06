@@ -87,3 +87,17 @@ describe('loadConfig (shared rules)', () => {
     expect(loadConfig({} as NodeJS.ProcessEnv)).toMatchObject({ ingestConcurrency: 2, mcpRateLimit: 60, maxUploadBytes: undefined });
   });
 });
+
+describe('loadConfig: listen address', () => {
+  it('listens on every interface unless told otherwise, so containers keep working', () => {
+    expect(loadConfig(prod() as NodeJS.ProcessEnv).host).toBe('0.0.0.0');
+  });
+
+  it('can be limited to this machine with HOST', () => {
+    expect(loadConfig(prod({ HOST: '127.0.0.1' }) as NodeJS.ProcessEnv).host).toBe('127.0.0.1');
+  });
+
+  it('treats an empty HOST as unset', () => {
+    expect(loadConfig(prod({ HOST: '' }) as NodeJS.ProcessEnv).host).toBe('0.0.0.0');
+  });
+});

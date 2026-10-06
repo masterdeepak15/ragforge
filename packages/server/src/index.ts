@@ -254,7 +254,7 @@ export async function startServer() {
   const app = await createApp({ jwtSecret: config.jwtSecret });
 
   try {
-    await app.listen({ port: PORT, host: '0.0.0.0' });
+    await app.listen({ port: PORT, host: config.host });
     console.log(`
 🚀 RAGForge is running!
 

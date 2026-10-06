@@ -6,6 +6,8 @@ export const DEFAULT_ENCRYPTION_KEY = '0'.repeat(63) + '1';
 export interface Config {
   production: boolean;
   port: number;
+  /** Address to listen on. 0.0.0.0 = every interface (containers); 127.0.0.1 = this machine only. */
+  host: string;
   publicUrl: string;
   storageMode: 'sqlite' | 'postgres';
   sqliteUrl: string;
@@ -86,6 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   return {
     production,
     port,
+    host: env.HOST || '0.0.0.0',
     publicUrl: env.PUBLIC_URL || `http://localhost:${port}`,
     storageMode,
     sqliteUrl: env.SQLITE_URL || 'file:./ragforge.db',
