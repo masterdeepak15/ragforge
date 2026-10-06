@@ -57,7 +57,7 @@ export async function createDatabaseContext(
 
     const client = postgres(options.postgresUrl);
     const db = drizzlePg(client, { schema: pgSchema });
-    const vectorStore = new PgVectorStore(db);
+    const vectorStore = new PgVectorStore(client);
 
     return {
       mode: 'postgres',
@@ -175,6 +175,10 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         mime_type TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS kb_vector_tables (
+        knowledge_base_id TEXT PRIMARY KEY,
+        dimension INTEGER NOT NULL
       )`,
       `CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id)`,
@@ -332,6 +336,11 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         mime_type TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS kb_vector_tables (
+        knowledge_base_id TEXT PRIMARY KEY,
+        dimension INTEGER NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id);

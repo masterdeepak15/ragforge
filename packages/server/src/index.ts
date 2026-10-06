@@ -7,6 +7,7 @@ import { join } from 'path';
 import { createDatabaseContext, runMigrations } from './db/connection.js';
 import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
 import { createKeywordIndex } from './core/search/fts.js';
+import { migrateLegacyVectors } from './core/vector/migrate-legacy.js';
 import { ProviderFactory } from './core/providers/factory.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
@@ -65,6 +66,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     ...(options.sqliteUrl ? { sqliteUrl: options.sqliteUrl } : {}),
   });
   await runMigrations(app.db);
+  await migrateLegacyVectors(app.db);
 
   // 2. Initialize retrieval engine
   app.retriever = new HybridRetriever({

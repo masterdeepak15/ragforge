@@ -90,7 +90,9 @@ export async function knowledgeBaseRoutes(app: FastifyInstance) {
 
   /** DELETE /api/knowledge-bases/:id */
   app.delete<{ Params: { id: string } }>('/api/knowledge-bases/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
-    // Cascade delete handled by foreign key constraints
+    // SQLite does not enforce foreign keys by default, so remove dependents explicitly.
+    await app.db.vectorStore.deleteByKnowledgeBaseId(req.params.id);
+    await db().execute({ sql: `DELETE FROM documents WHERE knowledge_base_id = ?`, args: [req.params.id] });
     await db().execute({ sql: `DELETE FROM knowledge_bases WHERE id = ?`, args: [req.params.id] });
     return reply.status(204).send();
   });
