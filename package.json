@@ -13,7 +13,8 @@
     "build": "npm run build --workspaces",
     "typecheck": "npm run build --workspace=@ragforge/shared && npm run typecheck --workspaces",
     "start": "npm run start --workspace=@ragforge/server",
-    "test": "npm run build --workspace=@ragforge/shared && npm test --workspaces --if-present"
+    "test": "npm run build --workspace=@ragforge/shared && npm test --workspaces --if-present",
+    "e2e": "npm run build && npm run e2e --workspace=@ragforge/web"
   },
   "keywords": [
     "rag",

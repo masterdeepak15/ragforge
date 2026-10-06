@@ -2,6 +2,7 @@
   "name": "@ragforge/server",
   "version": "1.0.0",
   "description": "RAGForge backend server, dual-mode vector engine, and AI gateway",
+  "type": "module",
   "main": "./dist/index.js",
   "bin": {
     "ragforge": "./bin/ragforge.js"

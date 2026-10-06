@@ -19,3 +19,7 @@ coverage/
 .remember/
 docs/superpowers/
 .superpowers/
+
+# Playwright
+test-results/
+playwright-report/

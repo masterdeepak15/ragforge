@@ -35,18 +35,25 @@ test.beforeAll(async ({ request }) => {
   const init = await request.post('/api/setup/init', { data: ADMIN });
   expect(init.status()).toBe(200);
   token = (await init.json()).token;
-
-  const provider = await request.post('/api/providers', {
-    headers: authz(),
-    data: { name: 'Fake Ollama', provider: 'ollama', baseUrl: OLLAMA, isDefaultEmbedding: true, defaultEmbeddingModel: 'fake-embed' },
-  });
-  expect(provider.status()).toBeLessThan(300);
 });
 
 test('upload, live indexing, search, MCP access, themes and deletion', async ({ page, request }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (e) => pageErrors.push(e.message));
   await signIn(page);
+
+  // --- connect an AI provider through Settings (a regression test for the broken Add provider form)
+  await page.goto('/settings');
+  await expect(page.getByText('No AI provider yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Add provider' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Add AI provider' });
+  await dialog.getByLabel('Server address').fill(OLLAMA);
+  await dialog.getByRole('button', { name: 'Test connection' }).click();
+  await expect(dialog.getByText(/Connected\. Found 1 model\./)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
+  const providerRow = page.getByRole('row', { name: /Ollama \(local\)/ });
+  await expect(providerRow).toContainText('Answers');
+  await expect(providerRow).toContainText('Indexing');
 
   // --- create a knowledge base through the UI
   await page.goto('/knowledge-bases');
@@ -76,10 +83,10 @@ test('upload, live indexing, search, MCP access, themes and deletion', async ({ 
 
   // --- create an API key through the UI and use it against /mcp
   await page.goto('/connect');
-  await page.getByRole('button', { name: 'Create API key' }).click();
+  await page.getByRole('button', { name: 'Create API key' }).first().click();
   await page.getByLabel('Name').fill('e2e client');
   await page.getByRole('button', { name: 'Create key' }).click();
-  const key = await page.getByLabel('API key').inputValue();
+  const key = await page.getByLabel('API key', { exact: true }).inputValue();
   expect(key).toMatch(/^rf_/);
   await page.getByRole('button', { name: 'Test connection' }).click();
   await expect(page.getByText(/Connected\. This key can see 1 knowledge base\./)).toBeVisible();
@@ -128,7 +135,7 @@ test('upload, live indexing, search, MCP access, themes and deletion', async ({ 
 test('an unreadable PDF fails with a clear reason and can be retried', async ({ page }) => {
   await signIn(page);
   await page.goto('/knowledge-bases');
-  await page.getByRole('link', { name: 'E2E handbook' }).click();
+  await page.getByRole('table', { name: 'Knowledge bases' }).getByRole('link', { name: 'E2E handbook' }).click();
   await page.getByLabel('Choose files').setInputFiles([{ name: 'scan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not really a pdf') }]);
   const row = page.getByRole('row').filter({ hasText: 'scan.pdf' }).filter({ hasText: 'Failed' }).first();
   await expect(row).toBeVisible();
