@@ -180,6 +180,24 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         knowledge_base_id TEXT PRIMARY KEY,
         dimension INTEGER NOT NULL
       )`,
+      `CREATE TABLE IF NOT EXISTS ingestion_jobs (
+        id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        error TEXT,
+        locked_at INTEGER,
+        run_after INTEGER,
+        created_ms INTEGER NOT NULL,
+        progress_stage TEXT,
+        chunks_total INTEGER,
+        chunks_done INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_jobs_status ON ingestion_jobs(status, run_after)`,
+      `CREATE INDEX IF NOT EXISTS idx_jobs_document ON ingestion_jobs(document_id)`,
       `CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id)`,
@@ -342,6 +360,25 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         knowledge_base_id TEXT PRIMARY KEY,
         dimension INTEGER NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS ingestion_jobs (
+        id TEXT PRIMARY KEY,
+        document_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        error TEXT,
+        locked_at BIGINT,
+        run_after BIGINT,
+        created_ms BIGINT NOT NULL,
+        progress_stage TEXT,
+        chunks_total INTEGER,
+        chunks_done INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_jobs_status ON ingestion_jobs(status, run_after);
+      CREATE INDEX IF NOT EXISTS idx_jobs_document ON ingestion_jobs(document_id);
 
       CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id);
       CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id);

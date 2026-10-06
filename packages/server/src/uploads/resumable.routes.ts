@@ -140,7 +140,7 @@ export async function resumableUploadRoutes(app: FastifyInstance) {
       return reply.status(409).send({ error: 'Upload incomplete', offset, size: Number(session.size) });
     }
 
-    const saved = await new UploadService(app.db, app.dataDir).finalizeFile({
+    const saved = await new UploadService(app.db, app.dataDir, { jobs: app.jobs, events: app.events }).finalizeFile({
       knowledgeBaseId: session.knowledge_base_id,
       filename: session.filename,
       mimeType: session.mime_type ?? 'application/octet-stream',

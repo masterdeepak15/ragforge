@@ -6,6 +6,13 @@ import { Transform, type Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { DocumentFileType } from '@ragforge/shared';
 import type { DatabaseContext } from '../db/connection.js';
+import type { EventBus } from '../events/event-bus.js';
+import type { JobQueue } from '../queue/job-queue.js';
+
+export interface UploadDeps {
+  jobs?: JobQueue;
+  events?: EventBus;
+}
 
 export interface SaveStreamInput {
   knowledgeBaseId: string;
@@ -32,7 +39,13 @@ export function detectSourceType(filename: string, mimeType: string): DocumentFi
 }
 
 export class UploadService {
-  constructor(private db: DatabaseContext, private dataDir: string) {}
+  constructor(private db: DatabaseContext, private dataDir: string, private deps: UploadDeps = {}) {}
+
+  /** Queues ingestion and announces a newly stored document. */
+  private async announce(documentId: string, knowledgeBaseId: string): Promise<void> {
+    await this.deps.jobs?.enqueue(documentId);
+    this.deps.events?.publish({ type: 'document.uploaded', documentId, knowledgeBaseId });
+  }
 
   get uploadsDir(): string {
     return join(this.dataDir, 'uploads');
@@ -138,6 +151,7 @@ export class UploadService {
       }
       throw err;
     }
+    await this.announce(documentId, input.knowledgeBaseId);
     return { documentId, title: input.filename, deduplicated: false };
   }
 
@@ -162,6 +176,7 @@ export class UploadService {
       }
       throw err;
     }
+    await this.announce(documentId, knowledgeBaseId);
     return { documentId, title: docTitle, deduplicated: false };
   }
 

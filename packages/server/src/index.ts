@@ -7,6 +7,8 @@ import { join } from 'path';
 import { createDatabaseContext, runMigrations } from './db/connection.js';
 import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
 import { InProcessEventBus, type EventBus } from './events/event-bus.js';
+import { JobQueue } from './queue/job-queue.js';
+import { Worker } from './queue/worker.js';
 import { createKeywordIndex } from './core/search/fts.js';
 import { migrateLegacyVectors } from './core/vector/migrate-legacy.js';
 import { ProviderFactory } from './core/providers/factory.js';
@@ -43,6 +45,8 @@ declare module 'fastify' {
     authenticate: any;
     dataDir: string;
     events: EventBus;
+    jobs: JobQueue;
+    worker: Worker;
   }
 }
 
@@ -71,6 +75,11 @@ export async function createApp(options: CreateAppOptions = {}) {
   });
   await runMigrations(app.db);
   await migrateLegacyVectors(app.db);
+  app.decorate('jobs', new JobQueue(app.db));
+  app.decorate('worker', new Worker(app.jobs));
+  // Single process: any job still 'running' at boot was interrupted by a crash or restart.
+  const recovered = await app.jobs.recoverStale(0);
+  if (recovered > 0) app.log.info(`[RAGForge] Re-queued ${recovered} interrupted ingestion job(s)`);
 
   // 2. Initialize retrieval engine
   app.retriever = new HybridRetriever({
@@ -178,6 +187,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     process.on('SIGTERM', gracefulShutdown);
   }
   app.addHook('onClose', async () => {
+    await app.worker.stop();
     await app.db.close();
   });
 

@@ -10,7 +10,7 @@ export async function documentRoutes(app: FastifyInstance) {
    * Files are streamed to disk; many files per request are allowed.
    */
   app.post('/api/documents/upload', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const uploads = new UploadService(app.db, app.dataDir);
+    const uploads = new UploadService(app.db, app.dataDir, { jobs: app.jobs, events: app.events });
     const fields: Record<string, string> = {};
     const items: Array<{ id: string; title: string; status: 'pending'; deduplicated: boolean }> = [];
     let missingKb = false;
