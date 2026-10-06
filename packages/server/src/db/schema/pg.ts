@@ -70,6 +70,7 @@ export const documents = pgTable('documents', {
   filePath: text('file_path'),
   fileSize: integer('file_size'),
   mimeType: text('mime_type'),
+  contentHash: text('content_hash'),
   tokenCount: integer('token_count').default(0),
   chunkCount: integer('chunk_count').default(0),
   status: text('status').notNull().default('pending'),

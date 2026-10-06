@@ -1,79 +1,70 @@
 import type { FastifyInstance } from 'fastify';
-import { randomUUID } from 'crypto';
-import { IngestionService } from '../services/ingestion.service.js';
-import type { DocumentFileType } from '@ragforge/shared';
+import { UploadService } from '../uploads/upload.service.js';
 
 export async function documentRoutes(app: FastifyInstance) {
   const db = () => app.db.client;
 
-  /** POST /api/documents/upload */
-  app.post<{
-    Body: {
-      knowledgeBaseId: string;
-      title: string;
-      sourceType: DocumentFileType;
-      sourceUrl?: string;
-      text?: string;
+  /**
+   * POST /api/documents/upload (multipart/form-data)
+   * Fields: knowledgeBaseId (must precede files), optional url, optional title (for url).
+   * Files are streamed to disk; many files per request are allowed.
+   */
+  app.post('/api/documents/upload', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const uploads = new UploadService(app.db, app.dataDir);
+    const fields: Record<string, string> = {};
+    const items: Array<{ id: string; title: string; status: 'pending'; deduplicated: boolean }> = [];
+    let missingKb = false;
+    let unknownKb = false;
+    let kbChecked: string | null = null;
+
+    const ensureKb = async (): Promise<boolean> => {
+      const kbId = fields.knowledgeBaseId;
+      if (!kbId) {
+        missingKb = true;
+        return false;
+      }
+      if (kbChecked !== kbId) {
+        const rs = await db().execute({ sql: `SELECT id FROM knowledge_bases WHERE id = ?`, args: [kbId] });
+        if (!rs.rows[0]) {
+          unknownKb = true;
+          return false;
+        }
+        kbChecked = kbId;
+      }
+      return true;
+    };
+
+    for await (const part of req.parts()) {
+      if (part.type === 'field') {
+        fields[part.fieldname] = String(part.value);
+        continue;
+      }
+      if (!(await ensureKb())) {
+        part.file.resume();
+        continue;
+      }
+      const saved = await uploads.saveStream({
+        knowledgeBaseId: fields.knowledgeBaseId,
+        filename: cleanFilename(part.filename),
+        mimeType: part.mimetype,
+        stream: part.file,
+      });
+      items.push({ id: saved.documentId, title: saved.title, status: 'pending', deduplicated: saved.deduplicated });
     }
-  }>('/api/documents/upload', {
-    onRequest: [app.authenticate],
-  }, async (req, reply) => {
-    const { knowledgeBaseId, title, sourceType, sourceUrl, text } = req.body as any;
-    const files = req.files as any;
 
-    if (!knowledgeBaseId || !title || !sourceType) {
-      return reply.status(400).send({ error: 'knowledgeBaseId, title, and sourceType are required' });
+    if (fields.url) {
+      if (await ensureKb()) {
+        const saved = await uploads.saveUrl(fields.knowledgeBaseId, fields.url, fields.title);
+        items.push({ id: saved.documentId, title: saved.title, status: 'pending', deduplicated: saved.deduplicated });
+      }
     }
 
-    const id = randomUUID();
-    let filePath: string | null = null;
-    let fileSize: number | null = null;
-    let mimeType: string | null = null;
-    let buffer: Buffer | undefined;
-
-    // Handle file upload
-    if (files?.file?.[0]) {
-      const file = files.file[0];
-      filePath = file.filename;
-      fileSize = file.buffer.length;
-      mimeType = file.mimetype;
-      buffer = file.buffer;
+    if (unknownKb) return reply.status(404).send({ error: 'Knowledge base not found' });
+    if (missingKb || (!fields.knowledgeBaseId && items.length === 0)) {
+      return reply.status(400).send({ error: 'knowledgeBaseId is required and must precede file fields' });
     }
-
-    // Insert document record
-    await db().execute({
-      sql: `INSERT INTO documents (id, knowledge_base_id, title, source_type, source_url, file_path, file_size, mime_type, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      args: [id, knowledgeBaseId, title, sourceType, sourceUrl ?? null, filePath, fileSize, mimeType],
-    });
-
-    // Start ingestion in background
-    const ingestionService = new IngestionService(app.db, app.db.vectorStore, app.retriever);
-
-    // Get knowledge base settings for embedding
-    const kbRs = await db().execute({
-      sql: `SELECT * FROM knowledge_bases WHERE id = ?`,
-      args: [knowledgeBaseId],
-    });
-    const kb = kbRs.rows[0];
-
-    ingestionService.ingest({
-      documentId: id,
-      knowledgeBaseId,
-      sourceType,
-      title,
-      buffer,
-      text,
-      url: sourceUrl,
-      chunkSize: Number(kb?.chunk_size) || 1000,
-      chunkOverlap: Number(kb?.chunk_overlap) || 200,
-      embeddingProviderId: kb?.embedding_provider_id as string | undefined,
-      embeddingModel: kb?.embedding_model as string | undefined,
-    }).catch(err => {
-      console.error(`[RAGForge] Ingestion failed for ${id}:`, err);
-    });
-
-    return reply.status(202).send({ id, status: 'pending', message: 'Document queued for processing' });
+    if (items.length === 0) return reply.status(400).send({ error: 'No file or url provided' });
+    return reply.status(202).send({ items });
   });
 
   /** GET /api/documents/:id */
@@ -129,4 +120,10 @@ export async function documentRoutes(app: FastifyInstance) {
 
     return reply.status(204).send();
   });
+}
+/** Keep only the last path segment and repair UTF-8 names that busboy decoded as latin1. */
+function cleanFilename(raw: string): string {
+  const base = raw.split(/[\/]/).pop() || 'upload';
+  const repaired = Buffer.from(base, 'latin1').toString('utf8');
+  return repaired.includes('\uFFFD') ? base : repaired;
 }

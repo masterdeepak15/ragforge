@@ -175,6 +175,15 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
     for (const sql of statements) {
       await ctx.client.execute(sql);
     }
+
+    // Additive migrations for databases created by earlier versions
+    const docCols = await ctx.client.execute(`PRAGMA table_info(documents)`);
+    if (!docCols.rows.some((r: any) => r.name === 'content_hash')) {
+      await ctx.client.execute(`ALTER TABLE documents ADD COLUMN content_hash TEXT`);
+    }
+    await ctx.client.execute(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash)`
+    );
     return;
   }
 
@@ -285,6 +294,9 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id);
       CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id);
       CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);
+
+      ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash);
     `);
     await client.end();
   }

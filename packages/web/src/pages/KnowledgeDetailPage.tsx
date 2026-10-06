@@ -54,8 +54,8 @@ export default function KnowledgeDetailPage() {
       for (const file of Array.from(files)) {
         setUploadProgress(`Uploading ${file.name}...`);
         const form = new FormData();
+        form.append('knowledgeBaseId', id!); // must precede the file part
         form.append('file', file);
-        form.append('knowledgeBaseId', id!);
         await apiUpload<Document>('/api/documents/upload', form);
       }
       await loadData();

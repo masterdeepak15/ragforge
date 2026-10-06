@@ -37,7 +37,6 @@ declare module 'fastify' {
     db: DatabaseContext;
     retriever: HybridRetriever;
     authenticate: any;
-    upload: any;
     dataDir: string;
   }
 }
@@ -131,11 +130,12 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // 4. CORS & multipart
   await app.register(cors, { origin: true });
+  // Files are streamed to disk by UploadService; no size cap unless MAX_UPLOAD_BYTES is set.
+  const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES) || undefined;
   await app.register(multipart, {
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
-    attachFieldsToBody: 'keyValues',
+    // fileSize must be explicit: the plugin otherwise defaults to Fastify's 1 MiB bodyLimit.
+    limits: { fileSize: maxUploadBytes ?? Number.MAX_SAFE_INTEGER, files: 100_000, fieldSize: 1024 * 1024 },
   });
-  app.decorate('upload', multipart);
 
   // 5. Static assets (serve React build)
   const webBuildPath = join(process.cwd(), 'packages/web/dist');
