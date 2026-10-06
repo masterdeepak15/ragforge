@@ -24,6 +24,7 @@ import { ingestionRoutes } from './routes/ingestion.routes.js';
 import { apiKeyRoutes } from './routes/apikey.routes.js';
 import { registerMcp } from './mcp/server.js';
 import { healthRoutes } from './routes/health.routes.js';
+import { statsRoutes } from './routes/stats.routes.js';
 import { loadConfig } from './config/env.js';
 import { resumableUploadRoutes, purgeStaleUploads } from './uploads/resumable.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
@@ -55,6 +56,7 @@ declare module 'fastify' {
     jobs: JobQueue;
     worker: Worker;
     workerEnabled: boolean;
+    ingestConcurrency: number;
   }
 }
 
@@ -92,12 +94,14 @@ export async function createApp(options: CreateAppOptions = {}) {
   app.decorate('jobs', new JobQueue(app.db));
   app.decorate('worker', new Worker(app.jobs));
   app.decorate('workerEnabled', options.startWorker ?? true);
+  const ingestConcurrency = Math.max(1, Number(process.env.INGEST_CONCURRENCY) || 2);
+  app.decorate('ingestConcurrency', ingestConcurrency);
   // Single process: any job still 'running' at boot was interrupted by a crash or restart.
   const recovered = await app.jobs.recoverStale(0);
   if (recovered > 0) app.log.info(`[RAGForge] Re-queued ${recovered} interrupted ingestion job(s)`);
 
   if (options.startWorker ?? true) {
-    const concurrency = Math.max(1, Number(process.env.INGEST_CONCURRENCY) || 2);
+    const concurrency = ingestConcurrency;
     app.worker.start({
       concurrency,
       handler: (job, signal) =>
@@ -187,6 +191,7 @@ export async function createApp(options: CreateAppOptions = {}) {
 
   // 6. API routes
   await app.register(healthRoutes);
+  await app.register(statsRoutes);
   await app.register(setupRoutes);
   await app.register(authRoutes);
   await app.register(providerRoutes);
