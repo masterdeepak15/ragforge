@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+.git
+.github
+.superpowers
+docs
+data
+*.db
+*.db-*
+.env
+.env.*
+!.env.example
+**/*.log
+**/.DS_Store
+Dockerfile
+docker-compose*.yml

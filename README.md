@@ -1,371 +1,129 @@
 # RAGForge
 
-**A self-hosted, open-source Knowledge Base and AI Agent platform with dual-distribution philosophy**
+A self-hosted knowledge base for your documents. Upload as many files as you like, ask questions and get cited answers, and let other AI tools (Claude, Cursor, any MCP client) search the same knowledge base.
 
-RAGForge enables organizations to build powerful knowledge management systems with integrated AI chat capabilities. Deploy locally for development with zero dependencies, or scale to production with PostgreSQL + pgvector.
+- **Unlimited uploads.** Files stream to disk, so size and count are not capped. Large files resume if the connection drops. Folders can be dropped as a whole.
+- **Indexing in the background.** A persistent queue processes files with retries and survives restarts. Progress is live in the UI.
+- **Ask your documents.** Hybrid search (meaning and keywords) with citations, using the AI provider you choose: Ollama, OpenAI, Anthropic, Gemini or Groq.
+- **Connect other AI tools.** A built-in [MCP](https://modelcontextprotocol.io) endpoint exposes search and read tools. You create, scope and revoke API keys in the UI.
+- **Light and dark themes**, keyboard-friendly (press `Ctrl+K`).
 
-## 🚀 Quick Start
+## Quick start (Docker)
 
-### Local Development (SQLite)
 ```bash
-# Clone the repository
-git clone https://github.com/masterdeepak15/ragforge.git
-cd ragforge
+cp .env.example .env
+# Set JWT_SECRET and ENCRYPTION_KEY in .env (the file explains how to generate them).
+docker compose up -d --build
+```
 
-# Install dependencies
+Open <http://localhost:8080>. The first visit walks you through creating the admin account. Then:
+
+1. **Settings → Add provider.** An embedding provider is required to index documents (for example Ollama with `nomic-embed-text`).
+2. **Knowledge bases → New knowledge base**, then drop files onto it.
+3. **Chat** with the knowledge base, or **Connect** other AI tools.
+
+Compose refuses to start without both secrets, so a placeholder password cannot reach production. Uploads and the database live in the `ragforge-data` volume.
+
+## Run from source
+
+Requires Node 22 or newer.
+
+```bash
 npm install
-
-# Build the project
-npm run build
-
-# Start RAGForge
-npx ragforge start
+cp .env.example .env            # development works without secrets (with warnings)
+npm run dev:server              # API on http://localhost:8080
+npm run dev:web                 # UI on http://localhost:5173 (proxies /api and /mcp)
 ```
 
-Navigate to `http://localhost:3000` to access the RAGForge interface.
+Production build: `npm run build`, then `node packages/server/bin/ragforge.js`.
 
-### Production (PostgreSQL + pgvector)
 ```bash
-# Start PostgreSQL with pgvector
-docker-compose up -d
-
-# Set environment variables
-export DATABASE_URL="postgresql://user:password@localhost:5432/ragforge"
-export NODE_ENV="production"
-
-# Build and start
-npm run build
-npx ragforge start
+npm test          # server and web test suites
+npm run typecheck
 ```
 
-## ✨ Features
+## Connect other AI tools (MCP)
 
-### 🧠 **Dual Storage Architecture**
-- **Local Mode**: SQLite with pure JavaScript/WASM (@libsql/client) - zero native dependencies
-- **Production Mode**: PostgreSQL + pgvector for enterprise-scale vector operations
+Open **Connect** in the app. Create an API key, choose which knowledge bases it may read, and copy the setup for your client. The key is shown once.
 
-### 🔍 **Advanced RAG Pipeline**
-- **Hybrid Search**: Combines semantic vector similarity with BM25 keyword search
-- **Reciprocal Rank Fusion**: Merges vector and keyword results (70% vector, 30% BM25)
-- **Smart Chunking**: Recursive text splitting with overlap for optimal context preservation
-- **Citation System**: Full source attribution with clickable references
+The endpoint is `POST /mcp` (Streamable HTTP) with `Authorization: Bearer rf_…`. It is read-only and offers:
 
-### 🤖 **Multi-Provider AI Support**
-- **OpenAI**: GPT models with API key authentication
-- **Anthropic**: Claude models with API key authentication  
-- **Google Gemini**: OAuth2 PKCE flow + API key support
-- **Groq**: Fast inference with API key authentication
-- **Ollama**: Local LLM support with automatic model detection
+| Tool | What it does |
+|---|---|
+| `list_knowledge_bases` | The knowledge bases this key can search, with counts |
+| `search_knowledge` | Hybrid search; returns chunks with their source document |
+| `list_documents` | Documents in a knowledge base |
+| `get_document` | A document's text, chunk by chunk |
 
-### 🔐 **Enterprise Security**
-- **AES-256-GCM Encryption**: All credentials encrypted at rest
-- **JWT Authentication**: Secure session management
-- **OAuth2 PKCE**: Industry-standard authentication flows
-- **CORS Protection**: Configurable cross-origin policies
+Claude Code:
 
-### 💬 **Real-time Chat Interface**
-- **Server-Sent Events (SSE)**: Streaming responses with live updates
-- **Citation Preview**: Expandable source document references
-- **Context-Aware**: Maintains conversation history with knowledge base context
-- **Multi-Session Support**: Concurrent chat sessions per knowledge base
+```bash
+claude mcp add --transport http ragforge http://localhost:8080/mcp --header "Authorization: Bearer rf_YOUR_KEY"
+```
 
-### 📚 **Knowledge Base Management**
-- **Multi-Format Support**: PDF, TXT, MD, DOCX document ingestion
-- **Batch Upload**: Drag-and-drop multiple files
-- **Metadata Extraction**: Automatic document metadata and statistics
-- **Vector Indexing**: Automatic embedding generation and storage
+Keys are stored hashed, can be scoped to specific knowledge bases, are rate-limited (60 requests per minute by default) and stop working the moment you revoke them. Put RAGForge behind HTTPS before exposing it beyond your machine or network.
 
-## 🏗️ Architecture
+## Configuration
 
-RAGForge is built as a modern monorepo with three main packages:
+| Variable | Default | Meaning |
+|---|---|---|
+| `JWT_SECRET` | none (required in production) | Signs login tokens; 32+ random characters |
+| `ENCRYPTION_KEY` | none (required in production) | Encrypts provider credentials; 64 hex characters. Back it up. |
+| `PORT` | `8080` | HTTP port |
+| `PUBLIC_URL` | `http://localhost:PORT` | Address users reach RAGForge at |
+| `DATA_DIR` | `data` (`/data` in Docker) | Where uploaded files are stored |
+| `SQLITE_URL` | `file:./ragforge.db` (`file:/data/ragforge.db` in Docker) | Database file |
+| `INGEST_CONCURRENCY` | `2` | Files indexed at once |
+| `MCP_RATE_LIMIT` | `60` | MCP requests per minute per key |
+| `MAX_UPLOAD_BYTES` | unset | Optional cap on one file; unset means unlimited |
+
+In production the server refuses to start with a missing or placeholder `JWT_SECRET` or `ENCRYPTION_KEY` and lists every configuration problem at once.
+
+Health endpoints for load balancers: `GET /api/health` (process is up) and `GET /api/ready` (database reachable and ingestion worker running).
+
+## Scale and limits
+
+- **Uploads:** no artificial limits. Real limits are disk space and your embedding provider's speed and cost. Indexing runs in the background at `INGEST_CONCURRENCY` files at a time; a rate-limited provider slows the queue down instead of failing it.
+- **Search speed (SQLite):** each knowledge base is searched with an exact scan, which is fast and always finds the true nearest chunks. Measured on a laptop: about 110 ms at the 95th percentile for 30,000 chunks of 384 dimensions, growing roughly linearly. Expect comfortable speed up to around 100,000 chunks per knowledge base. Larger models (768+ dimensions) are proportionally slower.
+- **PDF text:** only PDFs with a text layer are indexed. Scanned documents fail with a clear message ("No extractable text"); OCR is not included.
+- **Supported files:** PDF, Word (`.docx`), Markdown and plain text, plus web pages by URL.
+
+### PostgreSQL
+
+The code includes a PostgreSQL + pgvector implementation of the search layer, but **it is not production-ready**: the request handlers still use SQLite-style queries, and the Postgres path has no automated tests. Use SQLite (the default) until that work is done.
+
+## Backup and restore
+
+Everything is in two places: the database and the uploaded files (both under the `ragforge-data` volume in Docker), plus your `.env` (keep `ENCRYPTION_KEY` safe).
+
+```bash
+# Backup (stop first so the database file is consistent)
+docker compose stop
+docker run --rm -v ragforge_ragforge-data:/data -v "$PWD":/backup alpine tar czf /backup/ragforge-backup.tgz -C /data .
+docker compose start
+
+# Restore into a fresh volume
+docker compose down
+docker run --rm -v ragforge_ragforge-data:/data -v "$PWD":/backup alpine sh -c "cd /data && tar xzf /backup/ragforge-backup.tgz"
+docker compose up -d
+```
+
+## Troubleshooting
+
+- **A document says "Failed … Configure an embedding provider in Settings."** Add an embedding provider in Settings and press Retry.
+- **"Embedding dimension mismatch."** The embedding model changed after documents were indexed. Switch back to the original model or create a new knowledge base.
+- **MCP client gets 401.** The key is wrong, revoked, or you pasted a login token instead of an `rf_…` key.
+- **The page is blank after an update.** Rebuild the image so the web app and server match.
+
+## Project layout
 
 ```
 packages/
-├── shared/          # Common types, schemas, and utilities
-├── server/          # Fastify backend with AI providers and RAG engine
-└── web/             # React 19 frontend with Tailwind CSS
+  shared/   types shared by server and web
+  server/   Fastify API, ingestion queue, retrieval, MCP endpoint
+  web/      React app (Vite, Tailwind, Radix, TanStack Query)
 ```
 
-### Tech Stack
+## License
 
-#### Backend
-- **Framework**: Fastify 5 with TypeScript
-- **Database**: Drizzle ORM with dual SQLite/PostgreSQL schemas
-- **Vector Storage**: Custom implementations for both SQLite and pgvector
-- **AI Integration**: Provider abstraction layer with streaming support
-- **Authentication**: JWT + OAuth2 with PKCE
-
-#### Frontend  
-- **Framework**: React 19 with React Router 6
-- **Styling**: Tailwind CSS with dark theme support
-- **Icons**: Lucide React icon library
-- **Build Tool**: Vite with TypeScript
-- **State Management**: React Context + local state
-
-#### Infrastructure
-- **Containerization**: Docker + docker-compose
-- **Process Management**: PM2 support for production
-- **Monitoring**: Health check endpoints
-- **Static Serving**: Built-in SPA static file serving
-
-## 🛠️ Development
-
-### Prerequisites
-- Node.js 18+ 
-- npm 8+
-- Docker (for PostgreSQL setup)
-
-### Development Setup
-```bash
-# Clone and install
-git clone https://github.com/masterdeepak15/ragforge.git
-cd ragforge
-npm install
-
-# Start development servers
-npm run dev:server    # Backend on :3000
-npm run dev:web       # Frontend on :5173
-
-# Run type checking
-npm run typecheck
-
-# Build for production
-npm run build
-```
-
-### Environment Configuration
-
-Copy `.env.example` to `.env` and configure:
-
-```bash
-# Database (choose one)
-DATABASE_URL="file:./ragforge.db"  # SQLite (default)
-# DATABASE_URL="postgresql://user:pass@localhost:5432/ragforge"  # PostgreSQL
-
-# Security
-JWT_SECRET="your-secure-jwt-secret"
-ENCRYPTION_KEY="your-32-char-encryption-key"
-
-# Server
-PORT=3000
-NODE_ENV="development"
-
-# CORS (optional)
-CORS_ORIGINS="http://localhost:5173,http://localhost:3000"
-```
-
-### Project Structure
-
-```
-ragforge/
-├── packages/
-│   ├── shared/                 # Shared utilities and types
-│   │   └── src/
-│   │       ├── types/          # TypeScript type definitions
-│   │       └── schemas/        # Zod validation schemas
-│   ├── server/                 # Backend application
-│   │   ├── bin/ragforge.js     # CLI entry point
-│   │   ├── src/
-│   │   │   ├── core/           # Core business logic
-│   │   │   │   ├── ingestion/  # Document processing
-│   │   │   │   ├── providers/  # AI provider integrations
-│   │   │   │   ├── retrieval/  # RAG and search logic
-│   │   │   │   └── vector/     # Vector storage implementations
-│   │   │   ├── db/             # Database schemas and connections
-│   │   │   ├── routes/         # API route handlers
-│   │   │   └── services/       # Business logic services
-│   │   └── public/             # Built frontend assets
-│   └── web/                    # Frontend React application
-│       └── src/
-│           ├── components/     # Reusable UI components
-│           ├── pages/          # Route page components
-│           ├── lib/            # Utilities and API client
-│           └── types/          # Frontend-specific types
-├── docker-compose.yml          # PostgreSQL setup
-├── Dockerfile                  # Production container
-└── OVERVIEW.html              # Technical architecture guide
-```
-
-## 📖 API Reference
-
-### Authentication
-```bash
-# Create account
-POST /api/auth/register
-# Login
-POST /api/auth/login  
-# Get user profile
-GET /api/auth/me
-```
-
-### Knowledge Bases
-```bash
-# List knowledge bases
-GET /api/knowledge-bases
-# Create knowledge base  
-POST /api/knowledge-bases
-# Get details
-GET /api/knowledge-bases/:id
-# Delete knowledge base
-DELETE /api/knowledge-bases/:id
-```
-
-### Document Management
-```bash
-# Upload documents
-POST /api/knowledge-bases/:id/documents
-# List documents
-GET /api/knowledge-bases/:id/documents
-# Delete document
-DELETE /api/documents/:id
-```
-
-### Chat & Retrieval
-```bash
-# Stream chat (SSE)
-GET /api/knowledge-bases/:id/chat/stream
-# Retrieve chunks
-POST /api/playground/retrieve
-# Test retrieval
-GET /api/knowledge-bases/:id/search?q=query
-```
-
-### AI Providers
-```bash
-# List providers
-GET /api/providers
-# Configure provider
-POST /api/providers  
-# OAuth callback
-GET /auth/google/callback
-GET /auth/groq/callback
-```
-
-## 🔧 Configuration
-
-### AI Provider Setup
-
-#### OpenAI
-1. Get API key from [OpenAI Platform](https://platform.openai.com/)
-2. Add in Settings → AI Providers → Add OpenAI
-3. Enter your API key
-
-#### Anthropic Claude  
-1. Get API key from [Anthropic Console](https://console.anthropic.com/)
-2. Add in Settings → AI Providers → Add Anthropic
-3. Enter your API key
-
-#### Google Gemini (OAuth)
-1. Create project in [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable Generative AI API
-3. Create OAuth2 credentials with redirect: `http://localhost:3000/auth/google/callback`
-4. Add in Settings → Use OAuth flow
-
-#### Groq (OAuth)
-1. Create account at [Groq Console](https://console.groq.com/)
-2. Create OAuth application
-3. Add in Settings → Use OAuth flow
-
-#### Ollama (Local)
-1. Install [Ollama](https://ollama.ai/)
-2. Run: `ollama serve`
-3. RAGForge will auto-detect at `http://localhost:11434`
-
-### Database Migration
-
-#### SQLite → PostgreSQL
-```bash
-# 1. Export data (implement custom migration)
-# 2. Set new DATABASE_URL 
-export DATABASE_URL="postgresql://user:pass@localhost/ragforge"
-# 3. Restart server (auto-migrates schema)
-npm restart
-```
-
-## 🚀 Deployment
-
-### Docker Deployment
-```bash
-# Build image
-docker build -t ragforge .
-
-# Run with PostgreSQL
-docker-compose up -d
-```
-
-### Production Environment
-```bash
-# Install PM2
-npm install -g pm2
-
-# Start with PM2
-pm2 start packages/server/bin/ragforge.js --name ragforge
-
-# Monitor
-pm2 status ragforge
-pm2 logs ragforge
-```
-
-### Environment Variables (Production)
-```bash
-NODE_ENV=production
-DATABASE_URL="postgresql://user:pass@host:5432/ragforge"
-JWT_SECRET="secure-random-string"
-ENCRYPTION_KEY="32-character-encryption-key"
-PORT=3000
-```
-
-## 🧪 Testing
-
-```bash
-# Run type checking
-npm run typecheck
-
-# Test database connection
-npx ragforge start --check-db
-
-# Test AI provider
-curl http://localhost:3000/api/providers
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
-### Development Guidelines
-- Follow TypeScript strict mode
-- Use Prettier for code formatting
-- Add JSDoc comments for public APIs
-- Include error handling for all external calls
-- Test both SQLite and PostgreSQL code paths
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation**: See `OVERVIEW.html` for technical architecture
-- **Issues**: [GitHub Issues](https://github.com/masterdeepak15/ragforge/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/masterdeepak15/ragforge/discussions)
-
-## 🔮 Roadmap
-
-- [ ] **Multi-tenancy**: Organization and team management
-- [ ] **Advanced RAG**: Graph-based knowledge representation  
-- [ ] **Custom Embeddings**: Fine-tuned embedding models
-- [ ] **API Analytics**: Usage tracking and performance metrics
-- [ ] **Plugin System**: Custom document processors and AI providers
-- [ ] **Collaborative Features**: Shared knowledge bases and annotations
-- [ ] **Advanced Search**: Faceted search and filtering
-- [ ] **Export/Import**: Knowledge base backup and migration tools
-
----
-
-**RAGForge** - Empowering organizations with intelligent knowledge management 🚀
-
-Built with ❤️ using React 19, Fastify 5, and modern TypeScript
+MIT
