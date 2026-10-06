@@ -15,6 +15,8 @@ export interface ChatInput {
   topK?: number;
   similarityThreshold?: number;
   useHybridSearch?: boolean;
+  vectorWeight?: number;
+  bm25Weight?: number;
 }
 
 export interface ChatServiceDeps {
@@ -46,6 +48,8 @@ export class ChatService {
           topK: input.topK ?? 6,
           similarityThreshold: input.similarityThreshold ?? 0.3,
           useHybridSearch: input.useHybridSearch ?? true,
+          vectorWeight: input.vectorWeight,
+          bm25Weight: input.bm25Weight,
         });
 
         const titles = scoredChunks.length > 0 && this.deps.getDocumentTitles

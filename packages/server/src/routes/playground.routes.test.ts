@@ -59,4 +59,36 @@ describe('POST /api/playground/retrieve', () => {
     const chunks = await search({ minScore: 0.5, useHybridSearch: false });
     expect(chunks.map((c) => c.id)).toEqual(['strong']);
   });
+
+  describe('starts from the knowledge base retrieval settings', () => {
+    async function askRecording(body: Record<string, unknown>) {
+      let asked: any;
+      (t.app.retriever as any).retrieve = async (q: any) => {
+        asked = q;
+        return FOUND;
+      };
+      await search(body);
+      return asked;
+    }
+    const put = (payload: Record<string, unknown>) =>
+      t.app.inject({ method: 'PUT', url: `/api/knowledge-bases/${kbId}/retrieval-settings`, headers: { authorization: `Bearer ${t.token}` }, payload });
+
+    it('uses the saved settings for anything the page does not send', async () => {
+      await put({ topK: 9, minSimilarity: 0.55, useHybridSearch: false, vectorWeight: 0.8, bm25Weight: 0.2 });
+      const asked = await askRecording({});
+      expect(asked).toMatchObject({ topK: 9, useHybridSearch: false, vectorWeight: 0.8, bm25Weight: 0.2, similarityThreshold: 0.55 });
+    });
+
+    it('lets what the page sends win over the saved settings', async () => {
+      await put({ topK: 9, minSimilarity: 0.55 });
+      const asked = await askRecording({ topK: 3, minScore: 0.1 });
+      expect(asked).toMatchObject({ topK: 3, similarityThreshold: 0.1 });
+    });
+
+    it('filters the results with the saved minimum when the page sends none', async () => {
+      await put({ minSimilarity: 0.5, useHybridSearch: true });
+      (t.app.retriever as any).retrieve = async () => FOUND;
+      expect((await search({})).map((c) => c.id)).toEqual(['strong', 'keyword']);
+    });
+  });
 });

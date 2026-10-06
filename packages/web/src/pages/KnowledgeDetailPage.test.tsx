@@ -145,3 +145,15 @@ describe('KnowledgeDetailPage', () => {
     expect(net.find('DELETE', /kb1$/)).toHaveLength(1);
   });
 });
+
+describe('KnowledgeDetailPage: search settings', () => {
+  it('lets the owner tune how this knowledge base is searched from its Settings tab', async () => {
+    const defaults = { topK: 6, useHybridSearch: true, vectorWeight: 0.7, bm25Weight: 0.3, minSimilarity: 0.3 };
+    mockFetch([...baseRoutes(), { method: 'GET', path: '/api/knowledge-bases/kb1/retrieval-settings', handler: () => ({ settings: defaults, defaults, customized: false }) }]);
+    renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Settings' }));
+    const section = await screen.findByRole('region', { name: 'Search' });
+    expect(await within(section).findByLabelText('Passages per search')).toHaveValue(6);
+    expect(within(section).getByRole('button', { name: 'Save settings' })).toBeDisabled();
+  });
+});

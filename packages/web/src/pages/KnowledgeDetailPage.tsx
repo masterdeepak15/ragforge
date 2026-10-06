@@ -15,6 +15,7 @@ import { ApiError, api } from '../lib/api-client';
 import { formatBytes, formatCount } from '../lib/format';
 import { queryKeys } from '../lib/queries';
 import { uploadFiles, type UploadHandle, type UploadItem } from '../lib/upload';
+import { RetrievalSection } from '../features/retrieval/RetrievalSection';
 import { IndexingNotice } from '../features/providers/IndexingNotice';
 import { ChunkInspector } from '../features/knowledge/ChunkInspector';
 import { DocumentsTable } from '../features/knowledge/DocumentsTable';
@@ -231,6 +232,7 @@ export default function KnowledgeDetailPage() {
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6">
+          {kbId && <RetrievalSection kbId={kbId} />}
           <section className="rounded-lg border border-border bg-card p-5">
             <h2 className="text-sm font-semibold">Indexing</h2>
             <p className="mt-1 text-sm text-muted-foreground">These are fixed when documents are indexed.</p>

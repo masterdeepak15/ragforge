@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { rm } from 'fs/promises';
 import { join } from 'path';
 import { deleteDocuments } from '../services/document.service.js';
+import { DEFAULT_RETRIEVAL, getRetrievalSettings, parseRetrievalPatch, resetRetrievalSettings, saveRetrievalSettings } from '../services/retrieval-settings.js';
 
 export async function knowledgeBaseRoutes(app: FastifyInstance) {
   const db = () => app.db.client;
@@ -59,6 +60,34 @@ export async function knowledgeBaseRoutes(app: FastifyInstance) {
 
     const rs = await db().execute({ sql: `SELECT * FROM knowledge_bases WHERE id = ?`, args: [id] });
     return reply.status(201).send({ ...rs.rows[0], documentCount: 0, chunkCount: 0 });
+  });
+
+  const kbExists = async (id: string) => (await db().execute({ sql: `SELECT id FROM knowledge_bases WHERE id = ?`, args: [id] })).rows.length > 0;
+  const settingsView = async (id: string) => {
+    const stored = (await db().execute({ sql: `SELECT retrieval_settings FROM knowledge_bases WHERE id = ?`, args: [id] })).rows[0] as any;
+    return { settings: await getRetrievalSettings(db(), id), defaults: DEFAULT_RETRIEVAL, customized: !!stored?.retrieval_settings };
+  };
+
+  /** GET /api/knowledge-bases/:id/retrieval-settings: how this knowledge base is searched (Playground, Chat and MCP). */
+  app.get<{ Params: { id: string } }>('/api/knowledge-bases/:id/retrieval-settings', { onRequest: [app.authenticate] }, async (req, reply) => {
+    if (!(await kbExists(req.params.id))) return reply.status(404).send({ error: 'Knowledge base not found' });
+    return reply.send(await settingsView(req.params.id));
+  });
+
+  /** PUT /api/knowledge-bases/:id/retrieval-settings: change some of the settings, keep the rest. */
+  app.put<{ Params: { id: string }; Body: unknown }>('/api/knowledge-bases/:id/retrieval-settings', { onRequest: [app.authenticate] }, async (req, reply) => {
+    if (!(await kbExists(req.params.id))) return reply.status(404).send({ error: 'Knowledge base not found' });
+    const parsed = parseRetrievalPatch(req.body);
+    if (!parsed.ok) return reply.status(400).send({ error: parsed.error });
+    await saveRetrievalSettings(db(), req.params.id, parsed.value);
+    return reply.send(await settingsView(req.params.id));
+  });
+
+  /** DELETE /api/knowledge-bases/:id/retrieval-settings: back to the defaults. */
+  app.delete<{ Params: { id: string } }>('/api/knowledge-bases/:id/retrieval-settings', { onRequest: [app.authenticate] }, async (req, reply) => {
+    if (!(await kbExists(req.params.id))) return reply.status(404).send({ error: 'Knowledge base not found' });
+    await resetRetrievalSettings(db(), req.params.id);
+    return reply.send(await settingsView(req.params.id));
   });
 
   /** GET /api/knowledge-bases/:id */

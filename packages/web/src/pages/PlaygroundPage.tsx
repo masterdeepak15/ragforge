@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FlaskConical, Play, Loader2, Sliders, Hash, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import type { KnowledgeBase, DocumentChunk } from '../types/api';
+import type { RetrievalSettingsView } from '../features/retrieval/types';
 
 interface RetrievalResult extends DocumentChunk {
   score: number;
@@ -25,7 +26,7 @@ const DEFAULT_PARAMS: RetrievalParams = {
   useHybridSearch: true,
   vectorWeight: 0.7,
   bm25Weight: 0.3,
-  minScore: 0.0,
+  minScore: 0.3,
 };
 
 export default function PlaygroundPage() {
@@ -40,9 +41,51 @@ export default function PlaygroundPage() {
   const [expandedChunk, setExpandedChunk] = useState<string | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
 
+  const [saving, setSaving] = useState(false);
+  const [saveNote, setSaveNote] = useState('');
+  const [saveError, setSaveError] = useState('');
+
   useEffect(() => {
     apiFetch<KnowledgeBase[]>('/api/knowledge-bases').then(setKbs).catch(console.error);
   }, []);
+
+  // Each knowledge base has its own search settings; start from the ones saved for it.
+  useEffect(() => {
+    setSaveNote('');
+    setSaveError('');
+    if (!selectedKb) return;
+    let current = true;
+    apiFetch<RetrievalSettingsView>(`/api/knowledge-bases/${selectedKb}/retrieval-settings`)
+      .then(({ settings }) => {
+        if (!current) return;
+        setParams({ topK: settings.topK, useHybridSearch: settings.useHybridSearch, vectorWeight: settings.vectorWeight, bm25Weight: settings.bm25Weight, minScore: settings.minSimilarity });
+      })
+      .catch(() => {
+        /* keep the values on screen; searching still works */
+      });
+    return () => {
+      current = false;
+    };
+  }, [selectedKb]);
+
+  /** Keeps what was tuned here as how this knowledge base is searched everywhere (Chat, connected AI tools). */
+  const saveDefaults = async () => {
+    if (!selectedKb) return;
+    setSaving(true);
+    setSaveNote('');
+    setSaveError('');
+    try {
+      await apiFetch(`/api/knowledge-bases/${selectedKb}/retrieval-settings`, {
+        method: 'PUT',
+        json: { topK: params.topK, useHybridSearch: params.useHybridSearch, vectorWeight: params.vectorWeight, bm25Weight: params.bm25Weight, minSimilarity: params.minScore },
+      });
+      setSaveNote('Saved. Chat and connected AI tools now search this way.');
+    } catch (e: any) {
+      setSaveError(e.message || 'Could not save the settings.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const runQuery = async () => {
     if (!query.trim() || !selectedKb) return;
@@ -104,6 +147,7 @@ export default function PlaygroundPage() {
             <div>
               <label className="block text-sm font-medium text-foreground/80 mb-1.5">Knowledge Base</label>
               <select
+                aria-label="Knowledge base"
                 value={selectedKb}
                 onChange={(e) => setSelectedKb(e.target.value)}
                 className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground"
@@ -132,7 +176,8 @@ export default function PlaygroundPage() {
                 <label className="text-sm text-muted-foreground whitespace-nowrap">Top K</label>
                 <input
                   type="number"
-                  min={1} max={20}
+                  aria-label="Top K"
+                  min={1} max={50}
                   value={params.topK}
                   onChange={(e) => setParams((p) => ({ ...p, topK: Number(e.target.value) }))}
                   className="w-16 px-2 py-1.5 bg-muted border border-border rounded-lg text-foreground text-sm"
@@ -166,6 +211,7 @@ export default function PlaygroundPage() {
                   </label>
                   <input
                     type="range"
+                    aria-label="Vector weight"
                     min={0} max={1} step={0.1}
                     value={params.vectorWeight}
                     onChange={(e) => setParams((p) => ({ ...p, vectorWeight: Number(e.target.value) }))}
@@ -178,6 +224,7 @@ export default function PlaygroundPage() {
                   </label>
                   <input
                     type="range"
+                    aria-label="Keyword weight"
                     min={0} max={1} step={0.1}
                     value={params.bm25Weight}
                     onChange={(e) => setParams((p) => ({ ...p, bm25Weight: Number(e.target.value) }))}
@@ -190,6 +237,7 @@ export default function PlaygroundPage() {
                   </label>
                   <input
                     type="range"
+                    aria-label="Minimum similarity"
                     min={0} max={1} step={0.05}
                     value={params.minScore}
                     onChange={(e) => setParams((p) => ({ ...p, minScore: Number(e.target.value) }))}
@@ -208,6 +256,19 @@ export default function PlaygroundPage() {
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               Run Retrieval
             </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void saveDefaults()}
+                disabled={!selectedKb || saving}
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save as defaults for this knowledge base'}
+              </button>
+              <p className="text-xs text-muted-foreground">Chat and connected AI tools use the saved settings.</p>
+            </div>
+            {saveNote && <p role="status" className="text-sm text-success">{saveNote}</p>}
+            {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
           </div>
         </div>
 

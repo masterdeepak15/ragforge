@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { getRetrievalSettings } from '../services/retrieval-settings.js';
 
 export async function playgroundRoutes(app: FastifyInstance) {
   /** POST /api/playground/retrieve — test retrieval without generating a response */
@@ -13,15 +14,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
       minScore?: number;
     };
   }>('/api/playground/retrieve', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const {
-      query,
-      knowledgeBaseId,
-      topK = 6,
-      useHybridSearch = true,
-      vectorWeight = 0.7,
-      bm25Weight = 0.3,
-      minScore = 0,
-    } = req.body;
+    const { query, knowledgeBaseId } = req.body;
 
     if (!query?.trim()) {
       return reply.status(400).send({ error: 'query is required' });
@@ -40,6 +33,14 @@ export async function playgroundRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: 'Knowledge base not found' });
     }
 
+    // Start from how this knowledge base is configured; whatever the page sends wins.
+    const saved = await getRetrievalSettings(client, knowledgeBaseId);
+    const topK = req.body.topK ?? saved.topK;
+    const useHybridSearch = req.body.useHybridSearch ?? saved.useHybridSearch;
+    const vectorWeight = req.body.vectorWeight ?? saved.vectorWeight;
+    const bm25Weight = req.body.bm25Weight ?? saved.bm25Weight;
+    const minScore = req.body.minScore ?? saved.minSimilarity;
+
     const results = await app.retriever.retrieve({
       query,
       knowledgeBaseId,
@@ -47,6 +48,7 @@ export async function playgroundRoutes(app: FastifyInstance) {
       useHybridSearch,
       vectorWeight,
       bm25Weight,
+      similarityThreshold: minScore,
     });
 
     // Fetch document titles for context

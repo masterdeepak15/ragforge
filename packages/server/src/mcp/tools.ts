@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { DatabaseContext } from '../db/connection.js';
 import type { HybridRetriever } from '../core/retrieval/hybrid.retriever.js';
+import { getRetrievalSettings } from '../services/retrieval-settings.js';
 
 export interface ToolContext {
   db: DatabaseContext;
@@ -86,11 +87,12 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       inputSchema: {
         query: z.string().min(1).max(2000).describe('Natural-language question or keywords'),
         knowledge_base: z.string().optional().describe('Restrict the search to one knowledge base id'),
-        top_k: z.number().optional().describe(`Number of chunks to return (1-${MAX_TOP_K}, default ${DEFAULT_TOP_K})`),
+        top_k: z.number().optional().describe(`Number of chunks to return (1-${MAX_TOP_K}). Omit to use the knowledge base's own setting.`),
       },
     },
     async ({ query, knowledge_base, top_k }) => {
-      const topK = clamp(top_k, 1, MAX_TOP_K, DEFAULT_TOP_K);
+      // An explicit top_k wins; otherwise each knowledge base is searched the way its owner configured it.
+      const requestedK = Number.isFinite(top_k) ? clamp(top_k, 1, MAX_TOP_K, DEFAULT_TOP_K) : undefined;
       let targets: string[];
       if (knowledge_base) {
         const exists = await client().execute({ sql: `SELECT id FROM knowledge_bases WHERE id = ?`, args: [knowledge_base] });
@@ -103,9 +105,21 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
 
       const merged: Array<{ chunk: any; score: number }> = [];
       const warnings: Array<{ knowledge_base_id: string; message: string }> = [];
+      let topK = requestedK ?? 0;
       for (const kbId of targets) {
         try {
-          const chunks = await ctx.retriever.retrieve({ knowledgeBaseId: kbId, query, topK } as any);
+          const settings = await getRetrievalSettings(client(), kbId);
+          const kbTopK = requestedK ?? clamp(settings.topK, 1, MAX_TOP_K, DEFAULT_TOP_K);
+          topK = Math.max(topK, kbTopK);
+          const chunks = await ctx.retriever.retrieve({
+            knowledgeBaseId: kbId,
+            query,
+            topK: kbTopK,
+            similarityThreshold: settings.minSimilarity,
+            useHybridSearch: settings.useHybridSearch,
+            vectorWeight: settings.vectorWeight,
+            bm25Weight: settings.bm25Weight,
+          } as any);
           for (const c of chunks) merged.push({ chunk: c, score: c.score });
         } catch (err: any) {
           warnings.push({ knowledge_base_id: kbId, message: err?.message ?? String(err) });
@@ -116,7 +130,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       }
 
       merged.sort((a, b) => b.score - a.score);
-      const top = merged.slice(0, topK);
+      const top = merged.slice(0, topK || DEFAULT_TOP_K);
       const titles = new Map<string, string>();
       const docIds = [...new Set(top.map((m) => m.chunk.documentId as string))];
       if (docIds.length > 0) {

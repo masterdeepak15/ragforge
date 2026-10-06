@@ -13,14 +13,18 @@ function sse(...events: unknown[]) {
 }
 
 function renderChat(streamResponse: () => Response) {
-  mockFetch([
+  return renderChatWithNet(streamResponse);
+}
+
+function renderChatWithNet(streamResponse: () => Response) {
+  const net = mockFetch([
     { method: 'GET', path: '/api/chat/sessions', handler: () => [SESSION] },
     { method: 'GET', path: '/api/knowledge-bases', handler: () => [] },
     { method: 'GET', path: '/api/chat/sessions/s1', handler: () => SESSION },
     { method: 'GET', path: '/api/chat/sessions/s1/messages', handler: () => [] },
     { method: 'POST', path: '/api/chat/sessions/s1/stream', handler: streamResponse },
   ]);
-  return render(
+  render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={['/chat/s1']}>
         <Routes>
@@ -29,6 +33,7 @@ function renderChat(streamResponse: () => Response) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return net;
 }
 
 async function ask(text: string) {
@@ -51,6 +56,13 @@ describe('ChatPage', () => {
     renderChat(() => sse({ type: 'error', error: 'Your credit balance is too low to access the Anthropic API.' }));
     await ask('How long?');
     expect(await screen.findByText(/credit balance is too low/i)).toBeInTheDocument();
+  });
+
+  it('leaves how many passages to fetch to the knowledge base settings', async () => {
+    const net = renderChatWithNet(() => sse({ type: 'done', messageId: 'm', latencyMs: 1 }));
+    await ask('How long?');
+    await waitFor(() => expect(net.find('POST', /stream$/)).toHaveLength(1));
+    expect(net.find('POST', /stream$/)[0].body).toEqual({ message: 'How long?' });
   });
 
   describe('while waiting for the answer', () => {

@@ -195,3 +195,60 @@ describe('MCP /mcp endpoint', () => {
     expect(blocked.headers.get('retry-after')).toMatch(/^\d+$/);
   });
 });
+
+describe('MCP search follows the knowledge base retrieval settings', () => {
+  /** Runs a search while recording how the retriever was asked. */
+  async function searchRecording(args: Record<string, unknown>) {
+    const asked: any[] = [];
+    const original = t.app.retriever.retrieve.bind(t.app.retriever);
+    (t.app.retriever as any).retrieve = async (q: any) => {
+      asked.push(q);
+      return original(q);
+    };
+    const client = await connect(allKey);
+    try {
+      const res = await call(client, 'search_knowledge', args);
+      return { asked, res };
+    } finally {
+      (t.app.retriever as any).retrieve = original;
+      await client.close();
+    }
+  }
+  const save = (kb: string, payload: Record<string, unknown>) =>
+    t.app.inject({ method: 'PUT', url: `/api/knowledge-bases/${kb}/retrieval-settings`, headers: { authorization: `Bearer ${t.token}` }, payload });
+  const reset = (kb: string) => t.app.inject({ method: 'DELETE', url: `/api/knowledge-bases/${kb}/retrieval-settings`, headers: { authorization: `Bearer ${t.token}` } });
+
+  it('uses the saved settings when the caller does not choose', async () => {
+    await save(kbB, { topK: 3, minSimilarity: 0, useHybridSearch: false, vectorWeight: 0.9, bm25Weight: 0.1 });
+    try {
+      const { asked, res } = await searchRecording({ query: 'quokka research', knowledge_base: kbB });
+      expect(res.isError).toBe(false);
+      expect(asked[0]).toMatchObject({ knowledgeBaseId: kbB, topK: 3, similarityThreshold: 0, useHybridSearch: false, vectorWeight: 0.9, bm25Weight: 0.1 });
+    } finally {
+      await reset(kbB);
+    }
+  });
+
+  it('lets the caller override how many results with top_k', async () => {
+    await save(kbB, { topK: 3, minSimilarity: 0 });
+    try {
+      const { asked } = await searchRecording({ query: 'quokka research', knowledge_base: kbB, top_k: 2 });
+      expect(asked[0]).toMatchObject({ topK: 2 });
+    } finally {
+      await reset(kbB);
+    }
+  });
+
+  it('applies each knowledge base its own settings when searching several', async () => {
+    await save(kbA, { minSimilarity: 0, topK: 4 });
+    await save(kbB, { minSimilarity: 0, topK: 2 });
+    try {
+      const { asked } = await searchRecording({ query: 'quokka zeppelin' });
+      expect(asked.find((q) => q.knowledgeBaseId === kbA)).toMatchObject({ topK: 4 });
+      expect(asked.find((q) => q.knowledgeBaseId === kbB)).toMatchObject({ topK: 2 });
+    } finally {
+      await reset(kbA);
+      await reset(kbB);
+    }
+  });
+});

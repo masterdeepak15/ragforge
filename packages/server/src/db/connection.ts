@@ -110,6 +110,7 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         embedding_dimension INTEGER NOT NULL DEFAULT 768,
         chunk_size INTEGER NOT NULL DEFAULT 1000,
         chunk_overlap INTEGER NOT NULL DEFAULT 200,
+        retrieval_settings TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -233,6 +234,11 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       await ctx.client.execute(`ALTER TABLE kb_vector_tables ADD COLUMN embedding_model TEXT`);
     }
 
+    const kbCols = await ctx.client.execute(`PRAGMA table_info(knowledge_bases)`);
+    if (!kbCols.rows.some((r: any) => r.name === 'retrieval_settings')) {
+      await ctx.client.execute(`ALTER TABLE knowledge_bases ADD COLUMN retrieval_settings TEXT`);
+    }
+
     // Full-text index over chunk text (external-content FTS5, kept in sync by triggers)
     const ftsExisted = (await ctx.client.execute(`SELECT name FROM sqlite_master WHERE name = 'chunks_fts'`)).rows.length > 0;
     await ctx.client.execute(
@@ -299,6 +305,7 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         embedding_dimension INTEGER NOT NULL DEFAULT 768,
         chunk_size INTEGER NOT NULL DEFAULT 1000,
         chunk_overlap INTEGER NOT NULL DEFAULT 200,
+        retrieval_settings TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
@@ -416,6 +423,7 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
 
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
       ALTER TABLE kb_vector_tables ADD COLUMN IF NOT EXISTS embedding_model TEXT;
+      ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS retrieval_settings TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash);
 
       ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector

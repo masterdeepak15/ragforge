@@ -111,9 +111,8 @@ export default function ChatPage() {
     setPending('thinking');
     try {
       for await (const event of apiStream(`/api/chat/sessions/${currentSession.id}/stream`, {
+        // How many passages to fetch, hybrid search and the similarity floor come from the knowledge base's settings.
         message: content,
-        topK: 6,
-        useHybridSearch: true,
       })) {
         const ev = event as ChatStreamEvent;
         if (ev.type === 'token') {

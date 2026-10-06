@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
+import { DEFAULT_RETRIEVAL, getRetrievalSettings } from '../services/retrieval-settings.js';
 import { ChatService } from '../services/chat.service.js';
 
 export async function chatRoutes(app: FastifyInstance) {
@@ -85,6 +86,9 @@ export async function chatRoutes(app: FastifyInstance) {
     const session = sessionRs.rows[0];
     if (!session) return reply.status(404).send({ error: 'Session not found' });
 
+    // How this knowledge base is searched; anything the request sets explicitly wins.
+    const retrieval = session.knowledge_base_id ? await getRetrievalSettings(db(), session.knowledge_base_id as string) : DEFAULT_RETRIEVAL;
+
     // Get message history
     const historyRs = await db().execute({
       sql: `SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`,
@@ -158,9 +162,11 @@ export async function chatRoutes(app: FastifyInstance) {
         providerId: providerId ?? session.provider_id as string | undefined,
         model: model ?? session.model_override as string | undefined,
         temperature,
-        topK,
-        similarityThreshold,
-        useHybridSearch,
+        topK: topK ?? retrieval.topK,
+        similarityThreshold: similarityThreshold ?? retrieval.minSimilarity,
+        useHybridSearch: useHybridSearch ?? retrieval.useHybridSearch,
+        vectorWeight: retrieval.vectorWeight,
+        bm25Weight: retrieval.bm25Weight,
       })) {
         writeSSE(event);
         if (event.type === 'done' || event.type === 'error') break;
