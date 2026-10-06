@@ -21,6 +21,7 @@ import { knowledgeBaseRoutes } from './routes/kb.routes.js';
 import { documentRoutes } from './routes/document.routes.js';
 import { ingestionRoutes } from './routes/ingestion.routes.js';
 import { apiKeyRoutes } from './routes/apikey.routes.js';
+import { registerMcp } from './mcp/server.js';
 import { resumableUploadRoutes, purgeStaleUploads } from './uploads/resumable.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
 import { playgroundRoutes } from './routes/playground.routes.js';
@@ -61,6 +62,8 @@ export interface CreateAppOptions {
   logLevel?: string;
   /** Start the ingestion worker (disabled by default in tests). */
   startWorker?: boolean;
+  /** MCP requests per minute per API key (default MCP_RATE_LIMIT env or 60). */
+  mcpRateLimit?: number;
   /** Register SIGINT/SIGTERM handlers (disabled in tests). */
   signalHandlers?: boolean;
 }
@@ -183,6 +186,7 @@ export async function createApp(options: CreateAppOptions = {}) {
   await app.register(resumableUploadRoutes);
   await app.register(ingestionRoutes);
   await app.register(apiKeyRoutes);
+  await registerMcp(app, { rateLimitPerMinute: options.mcpRateLimit ?? (Number(process.env.MCP_RATE_LIMIT) || 60) });
   purgeStaleUploads(app.db, app.dataDir).catch((err) => app.log.warn({ err }, 'upload purge failed'));
   await app.register(chatRoutes);
   await app.register(playgroundRoutes);
