@@ -198,6 +198,17 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       )`,
       `CREATE INDEX IF NOT EXISTS idx_jobs_status ON ingestion_jobs(status, run_after)`,
       `CREATE INDEX IF NOT EXISTS idx_jobs_document ON ingestion_jobs(document_id)`,
+      `CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        key_prefix TEXT NOT NULL,
+        scope_kb_ids TEXT,
+        created_by TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_used_at INTEGER,
+        revoked_at INTEGER
+      )`,
       `CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id)`,
@@ -379,6 +390,18 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS idx_jobs_status ON ingestion_jobs(status, run_after);
       CREATE INDEX IF NOT EXISTS idx_jobs_document ON ingestion_jobs(document_id);
+
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        key_hash TEXT NOT NULL UNIQUE,
+        key_prefix TEXT NOT NULL,
+        scope_kb_ids TEXT,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        last_used_at BIGINT,
+        revoked_at BIGINT
+      );
 
       CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id);
       CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id);
