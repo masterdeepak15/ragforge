@@ -1,39 +1,37 @@
 /** @type {import('tailwindcss').Config} */
+// Colours are CSS variables holding "R G B" triplets (see index.css), so Tailwind opacity modifiers work
+// and light/dark themes switch by toggling the `dark` class on <html>.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
-        },
-        dark: {
-          bg: '#0B0F17',
-          surface: '#111827',
-          card: '#1F2937',
-          border: '#374151',
-          hover: '#2D3748',
-        }
+        background: token('background'),
+        card: token('card'),
+        foreground: token('foreground'),
+        muted: token('muted'),
+        'muted-foreground': token('muted-foreground'),
+        border: token('border'),
+        primary: token('primary'),
+        'primary-foreground': token('primary-foreground'),
+        accent: token('accent'),
+        'accent-foreground': token('accent-foreground'),
+        success: token('success'),
+        warning: token('warning'),
+        destructive: token('destructive'),
+        ring: token('ring'),
+        code: token('code'),
+        'code-foreground': token('code-foreground'),
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['"Schibsted Grotesk"', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'Consolas', 'monospace'],
       },
+      borderRadius: { DEFAULT: '0.5rem', lg: '0.625rem' },
     },
   },
   plugins: [],
-}
+};

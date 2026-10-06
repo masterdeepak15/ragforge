@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { apiFetch, setToken, clearToken } from './api.js';
+import { UNAUTHORIZED_EVENT } from './api-client';
 import type { User } from '../types/api.js';
 
 interface AuthState {
@@ -42,6 +43,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (!state.token) {
       setState((s) => ({ ...s, loading: false }));
     }
+  }, []);
+
+  // The API client broadcasts this when a request made with a session token is rejected (token expired).
+  useEffect(() => {
+    const onExpired = () => {
+      clearToken();
+      setState({ user: null, token: null, loading: false });
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onExpired);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onExpired);
   }, []);
 
   const login = async (email: string, password: string) => {

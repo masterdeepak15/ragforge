@@ -1,4 +1,8 @@
-const BASE = '';
+/**
+ * Legacy request helpers, kept so existing pages keep working. They delegate to the typed client in
+ * `api-client.ts` (token header, ApiError, sign-out on expired session). Prefer `api` in new code.
+ */
+import { api, ApiError } from './api-client';
 
 function getToken(): string | null {
   try {
@@ -11,96 +15,44 @@ function getToken(): string | null {
 export function setToken(token: string) {
   try {
     localStorage.setItem('ragforge_token', token);
-  } catch {}
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 export function clearToken() {
   try {
     localStorage.removeItem('ragforge_token');
     localStorage.removeItem('ragforge_user');
-  } catch {}
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 interface FetchOptions extends RequestInit {
   json?: unknown;
 }
 
-export async function apiFetch<T = unknown>(
-  path: string,
-  options: FetchOptions = {}
-): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    ...(options.headers as Record<string, string>),
-  };
-
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  if (options.json !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(options.json);
-  }
-
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
-
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const body = await res.json();
-      msg = body.error || body.message || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-
-  const ct = res.headers.get('content-type') || '';
-  if (ct.includes('application/json')) return res.json() as Promise<T>;
-  return res.text() as unknown as T;
+export async function apiFetch<T = unknown>(path: string, options: FetchOptions = {}): Promise<T> {
+  const { json, method, headers, body, signal } = options;
+  return api.request<T>(method ?? (json !== undefined || body ? 'POST' : 'GET'), path, json !== undefined ? json : (body ?? undefined), {
+    headers: headers as Record<string, string> | undefined,
+    signal,
+  });
 }
 
-export async function apiUpload<T = unknown>(
-  path: string,
-  formData: FormData
-): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
-
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const body = await res.json();
-      msg = body.error || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-
-  return res.json() as Promise<T>;
+export async function apiUpload<T = unknown>(path: string, formData: FormData): Promise<T> {
+  return api.request<T>('POST', path, formData);
 }
 
-export async function* apiStream(
-  path: string,
-  body: unknown
-): AsyncGenerator<unknown, void, unknown> {
+export async function* apiStream(path: string, body: unknown): AsyncGenerator<unknown, void, unknown> {
   const token = getToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-
+  const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!res.ok || !res.body) {
-    throw new Error(`Stream error: HTTP ${res.status}`);
+    throw new ApiError(res.status, `Could not start the response (HTTP ${res.status})`);
   }
 
   const reader = res.body.getReader();
@@ -118,7 +70,9 @@ export async function* apiStream(
       if (!line) continue;
       try {
         yield JSON.parse(line);
-      } catch {}
+      } catch {
+        /* ignore a malformed event */
+      }
     }
   }
 }

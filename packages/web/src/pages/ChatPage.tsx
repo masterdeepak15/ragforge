@@ -128,7 +128,7 @@ export default function ChatPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
       </div>
     );
   }

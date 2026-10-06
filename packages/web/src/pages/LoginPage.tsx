@@ -26,46 +26,46 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 mb-4">
-            <Sparkles className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
+            <Sparkles className="w-8 h-8 text-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">RAGForge</h1>
-          <p className="text-slate-400">Sign in to your knowledge base</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">RAGForge</h1>
+          <p className="text-muted-foreground">Sign in to your knowledge base</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-slate-900 rounded-xl border border-slate-800 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-card rounded-xl border border-border p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+            <label className="block text-sm font-medium text-foreground/80 mb-1">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               placeholder="you@example.com"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-foreground/80 mb-1">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-2 bg-muted border border-border rounded-lg text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               placeholder="••••••••"
               required
             />
           </div>
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p className="text-destructive text-sm">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg transition-colors disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
             Sign In

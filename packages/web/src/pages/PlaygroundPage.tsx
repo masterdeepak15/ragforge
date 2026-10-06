@@ -64,13 +64,13 @@ export default function PlaygroundPage() {
   };
 
   const scoreColor = (score: number) => {
-    if (score >= 0.8) return 'text-emerald-400';
-    if (score >= 0.6) return 'text-yellow-400';
-    return 'text-slate-400';
+    if (score >= 0.8) return 'text-primary';
+    if (score >= 0.6) return 'text-warning';
+    return 'text-muted-foreground';
   };
 
   const scoreBar = (score: number) => (
-    <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
       <div
         className={`h-full rounded-full bg-gradient-to-r ${
           score >= 0.8 ? 'from-emerald-500 to-emerald-400' :
@@ -83,27 +83,27 @@ export default function PlaygroundPage() {
   );
 
   return (
-    <div className="p-6 h-full overflow-y-auto bg-slate-950">
+    <div className="p-6 h-full overflow-y-auto bg-background">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-            <FlaskConical className="w-5 h-5 text-white" />
+            <FlaskConical className="w-5 h-5 text-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Playground</h1>
-            <p className="text-slate-400 text-sm">Test retrieval queries and tune parameters</p>
+            <h1 className="text-2xl font-bold text-foreground">Playground</h1>
+            <p className="text-muted-foreground text-sm">Test retrieval queries and tune parameters</p>
           </div>
         </div>
 
         {/* Query form */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+        <div className="bg-card border border-border rounded-xl p-5 mb-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Knowledge Base</label>
+              <label className="block text-sm font-medium text-foreground/80 mb-1.5">Knowledge Base</label>
               <select
                 value={selectedKb}
                 onChange={(e) => setSelectedKb(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground"
               >
                 <option value="">Select a knowledge base...</option>
                 {kbs.map((kb) => (
@@ -112,27 +112,27 @@ export default function PlaygroundPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Query</label>
+              <label className="block text-sm font-medium text-foreground/80 mb-1.5">Query</label>
               <textarea
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && runQuery()}
                 placeholder="Enter a search query... (Ctrl+Enter to run)"
                 rows={3}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 resize-none"
+                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring resize-none"
               />
             </div>
 
             {/* Quick params */}
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-sm text-slate-400 whitespace-nowrap">Top K</label>
+                <label className="text-sm text-muted-foreground whitespace-nowrap">Top K</label>
                 <input
                   type="number"
                   min={1} max={20}
                   value={params.topK}
                   onChange={(e) => setParams((p) => ({ ...p, topK: Number(e.target.value) }))}
-                  className="w-16 px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm"
+                  className="w-16 px-2 py-1.5 bg-muted border border-border rounded-lg text-foreground text-sm"
                 />
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
@@ -140,13 +140,13 @@ export default function PlaygroundPage() {
                   type="checkbox"
                   checked={params.useHybridSearch}
                   onChange={(e) => setParams((p) => ({ ...p, useHybridSearch: e.target.checked }))}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500"
+                  className="w-4 h-4 rounded border-border bg-muted text-primary"
                 />
-                <span className="text-sm text-slate-400">Hybrid search</span>
+                <span className="text-sm text-muted-foreground">Hybrid search</span>
               </label>
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Sliders className="w-4 h-4" />
                 Advanced
@@ -156,9 +156,9 @@ export default function PlaygroundPage() {
 
             {/* Advanced params */}
             {showAdvanced && (
-              <div className="pt-2 border-t border-slate-800 grid grid-cols-2 gap-4">
+              <div className="pt-2 border-t border-border grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     Vector weight: {params.vectorWeight.toFixed(1)}
                   </label>
                   <input
@@ -170,7 +170,7 @@ export default function PlaygroundPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     BM25 weight: {params.bm25Weight.toFixed(1)}
                   </label>
                   <input
@@ -182,7 +182,7 @@ export default function PlaygroundPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">
+                  <label className="block text-xs text-muted-foreground mb-1">
                     Min score: {params.minScore.toFixed(2)}
                   </label>
                   <input
@@ -199,7 +199,7 @@ export default function PlaygroundPage() {
             <button
               onClick={runQuery}
               disabled={!query.trim() || !selectedKb || loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-medium rounded-lg transition-colors"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               Run Retrieval
@@ -209,7 +209,7 @@ export default function PlaygroundPage() {
 
         {/* Results */}
         {error && (
-          <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
+          <div className="mb-4 px-4 py-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
             {error}
           </div>
         )}
@@ -217,27 +217,27 @@ export default function PlaygroundPage() {
         {results.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-slate-300">
+              <h2 className="text-sm font-medium text-foreground/80">
                 {results.length} results
-                {latency !== null && <span className="text-slate-500 ml-2">· {latency}ms</span>}
+                {latency !== null && <span className="text-muted-foreground ml-2">· {latency}ms</span>}
               </h2>
             </div>
             <div className="space-y-3">
               {results.map((chunk, i) => (
                 <div
                   key={chunk.id}
-                  className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"
+                  className="bg-card border border-border rounded-xl overflow-hidden"
                 >
                   <div
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                     onClick={() => setExpandedChunk(expandedChunk === chunk.id ? null : chunk.id)}
                   >
-                    <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300 flex-shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-foreground/80 flex-shrink-0">
                       {i + 1}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p className="text-sm font-medium text-foreground truncate">
                           {chunk.documentTitle ?? 'Unknown document'}
                         </p>
                         <span className={`text-xs font-mono ${scoreColor(chunk.score)}`}>
@@ -246,17 +246,17 @@ export default function PlaygroundPage() {
                       </div>
                       {scoreBar(chunk.score)}
                     </div>
-                    <Hash className="w-4 h-4 text-slate-600 flex-shrink-0" />
+                    <Hash className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
                   {expandedChunk === chunk.id && (
-                    <div className="border-t border-slate-800 bg-slate-950/50 px-4 py-3">
-                      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                    <div className="border-t border-border bg-background/50 px-4 py-3">
+                      <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
                         {chunk.content}
                       </p>
                       {chunk.metadata && Object.keys(chunk.metadata).length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {Object.entries(chunk.metadata).map(([k, v]) => (
-                            <span key={k} className="px-2 py-0.5 bg-slate-800 text-xs text-slate-400 rounded">
+                            <span key={k} className="px-2 py-0.5 bg-muted text-xs text-muted-foreground rounded">
                               {k}: {String(v)}
                             </span>
                           ))}
@@ -271,7 +271,7 @@ export default function PlaygroundPage() {
         )}
 
         {!loading && results.length === 0 && query && !error && (
-          <div className="text-center py-12 text-slate-500">
+          <div className="text-center py-12 text-muted-foreground">
             No results found. Try a different query or lower the min score threshold.
           </div>
         )}

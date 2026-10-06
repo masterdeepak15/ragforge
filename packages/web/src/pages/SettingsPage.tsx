@@ -170,22 +170,22 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 h-full overflow-y-auto bg-slate-950">
+    <div className="p-6 h-full overflow-y-auto bg-background">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-white">Settings</h1>
-            <p className="text-slate-400 mt-1">Manage AI providers and application settings</p>
+            <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+            <p className="text-muted-foreground mt-1">Manage AI providers and application settings</p>
           </div>
           <button
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Provider
@@ -194,14 +194,14 @@ export default function SettingsPage() {
 
         {/* Quick OAuth connect buttons */}
         <div className="mb-8">
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-3">Quick Connect</h2>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">Quick Connect</h2>
           <div className="flex flex-wrap gap-3">
             {Object.entries(PROVIDER_META).filter(([, m]) => m.hasOAuth).map(([type, meta]) => (
               <button
                 key={type}
                 onClick={() => startOAuth(type)}
                 disabled={oauthPending === type}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-medium bg-gradient-to-r ${meta.color} hover:opacity-90 disabled:opacity-50 transition-opacity`}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-foreground text-sm font-medium bg-gradient-to-r ${meta.color} hover:opacity-90 disabled:opacity-50 transition-opacity`}
               >
                 {oauthPending === type ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -216,34 +216,34 @@ export default function SettingsPage() {
 
         {/* Configured providers */}
         <div>
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
             Configured Providers ({providers.length})
           </h2>
           {providers.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-              <Settings className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-400">No AI providers configured yet</p>
+            <div className="bg-card border border-border rounded-xl p-8 text-center">
+              <Settings className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No AI providers configured yet</p>
             </div>
           ) : (
             <div className="space-y-3">
               {providers.map((p) => {
                 const meta = PROVIDER_META[p.provider] ?? { label: p.provider, color: 'from-slate-500 to-slate-600', hasOAuth: false };
                 return (
-                  <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                  <div key={p.id} className="bg-card border border-border rounded-xl overflow-hidden">
                     <div className="flex items-center gap-4 px-4 py-3">
                       <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${meta.color} flex items-center justify-center flex-shrink-0`}>
-                        <span className="text-white text-xs font-bold">{meta.label[0]}</span>
+                        <span className="text-foreground text-xs font-bold">{meta.label[0]}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-white">{p.name}</p>
+                          <p className="font-medium text-foreground">{p.name}</p>
                           {p.isDefaultLlm || p.isDefaultEmbedding ? (
-                            <CheckCircle className="w-4 h-4 text-emerald-400" />
+                            <CheckCircle className="w-4 h-4 text-primary" />
                           ) : (
-                            <XCircle className="w-4 h-4 text-slate-500" />
+                            <XCircle className="w-4 h-4 text-muted-foreground" />
                           )}
                         </div>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                           {meta.label} · {p.hasApiKey ? 'API Key' : 'OAuth'}
                           {p.defaultLlmModel && ` · ${p.defaultLlmModel}`}
                         </p>
@@ -251,14 +251,14 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => loadModels(p.id)}
-                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                          className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                           title="Models"
                         >
                           <ChevronDown className={`w-4 h-4 transition-transform ${modelsOpen === p.id ? 'rotate-180' : ''}`} />
                         </button>
                         <button
                           onClick={() => deleteProvider(p.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -266,20 +266,20 @@ export default function SettingsPage() {
                     </div>
 
                     {modelsOpen === p.id && (
-                      <div className="border-t border-slate-800 bg-slate-950/50 p-4">
+                      <div className="border-t border-border bg-background/50 p-4">
                         {!models[p.id] ? (
-                          <div className="flex items-center gap-2 text-sm text-slate-400">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Fetching models...
                           </div>
                         ) : (
                           <div className="space-y-3">
                             <div>
-                              <label className="block text-xs text-slate-400 mb-1.5">Default LLM model</label>
+                              <label className="block text-xs text-muted-foreground mb-1.5">Default LLM model</label>
                               <select
                                 value={p.defaultLlmModel ?? ''}
                                 onChange={(e) => updateDefaultModel(p.id, e.target.value)}
-                                className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white"
+                                className="w-full px-3 py-1.5 bg-muted border border-border rounded-lg text-sm text-foreground"
                               >
                                 <option value="">Select model...</option>
                                 {models[p.id].llm.map((m) => (
@@ -289,10 +289,10 @@ export default function SettingsPage() {
                             </div>
                             {models[p.id].embedding.length > 0 && (
                               <div>
-                                <label className="block text-xs text-slate-400 mb-1.5">Embedding models available</label>
+                                <label className="block text-xs text-muted-foreground mb-1.5">Embedding models available</label>
                                 <div className="flex flex-wrap gap-1.5">
                                   {models[p.id].embedding.map((m) => (
-                                    <span key={m} className="px-2 py-1 bg-slate-800 text-xs text-slate-300 rounded">
+                                    <span key={m} className="px-2 py-1 bg-muted text-xs text-foreground/80 rounded">
                                       {m}
                                     </span>
                                   ))}
@@ -314,23 +314,23 @@ export default function SettingsPage() {
       {/* Add provider modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 rounded-xl border border-slate-800 p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-card rounded-xl border border-border p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-semibold text-white">Add AI Provider</h2>
+              <h2 className="text-lg font-semibold text-foreground">Add AI Provider</h2>
               <button
                 onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); setError(''); }}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"
+                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Provider type</label>
+                <label className="block text-sm font-medium text-foreground/80 mb-1.5">Provider type</label>
                 <select
                   value={form.type}
                   onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground"
                 >
                   {Object.entries(PROVIDER_META).map(([type, meta]) => (
                     <option key={type} value={type}>{meta.label}</option>
@@ -338,61 +338,61 @@ export default function SettingsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Display name</label>
+                <label className="block text-sm font-medium text-foreground/80 mb-1.5">Display name</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder={PROVIDER_META[form.type]?.label ?? 'Provider'}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground"
                 />
               </div>
               {form.type !== 'ollama' && !PROVIDER_META[form.type]?.hasOAuth && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1.5">API Key</label>
+                  <label className="block text-sm font-medium text-foreground/80 mb-1.5">API Key</label>
                   <input
                     type="password"
                     value={form.apiKey}
                     onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
                     placeholder="sk-..."
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
               )}
               {form.type === 'ollama' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Base URL</label>
+                  <label className="block text-sm font-medium text-foreground/80 mb-1.5">Base URL</label>
                   <input
                     type="url"
                     value={form.baseUrl}
                     onChange={(e) => setForm((f) => ({ ...f, baseUrl: e.target.value }))}
                     placeholder="http://localhost:11434"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Default model (optional)</label>
+                <label className="block text-sm font-medium text-foreground/80 mb-1.5">Default model (optional)</label>
                 <input
                   type="text"
                   value={form.defaultModel}
                   onChange={(e) => setForm((f) => ({ ...f, defaultModel: e.target.value }))}
                   placeholder="e.g. gpt-4o-mini"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-400"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground placeholder:text-muted-foreground"
                 />
               </div>
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button
                   onClick={() => { setShowAdd(false); setForm(EMPTY_FORM); setError(''); }}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-muted hover:bg-muted text-foreground rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 {PROVIDER_META[form.type]?.hasOAuth ? (
                   <button
                     onClick={() => { setShowAdd(false); startOAuth(form.type); }}
-                    className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <ExternalLink className="w-4 h-4" />
                     Authorize
@@ -401,7 +401,7 @@ export default function SettingsPage() {
                   <button
                     onClick={addProvider}
                     disabled={saving}
-                    className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                     Connect

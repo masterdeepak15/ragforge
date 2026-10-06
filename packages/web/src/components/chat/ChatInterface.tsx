@@ -63,7 +63,7 @@ export default function ChatInterface({
         <button
           key={`cite-${match.index}`}
           onClick={() => citation && setOpenCitation(citation)}
-          className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors"
+          className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium bg-primary/20 text-primary rounded hover:bg-primary/30 transition-colors"
         >
           {citationNum}
         </button>
@@ -80,11 +80,11 @@ export default function ChatInterface({
   return (
     <div className="flex h-screen">
       {/* Session list */}
-      <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
-        <div className="p-3 border-b border-slate-800">
+      <div className="w-64 bg-card border-r border-border flex flex-col">
+        <div className="p-3 border-b border-border">
           <button
             onClick={() => setShowNewSessionModal(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             New Chat
@@ -97,8 +97,8 @@ export default function ChatInterface({
               onClick={() => onSelectSession(s)}
               className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
                 currentSession?.id === s.id
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                  ? 'bg-muted text-foreground'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
               }`}
             >
               <div className="flex items-start gap-2">
@@ -111,7 +111,7 @@ export default function ChatInterface({
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col bg-slate-950">
+      <div className="flex-1 flex flex-col bg-background">
         {currentSession ? (
           <>
             <div className="flex-1 overflow-y-auto p-6">
@@ -120,13 +120,13 @@ export default function ChatInterface({
                   <div key={i} className="animate-slide-in">
                     <div className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                       {msg.role === 'assistant' && (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex-shrink-0" />
+                        <div className="w-8 h-8 rounded-full bg-primary flex-shrink-0" />
                       )}
                       <div
                         className={`max-w-2xl px-4 py-3 rounded-xl ${
                           msg.role === 'user'
-                            ? 'bg-emerald-500/10 text-slate-100'
-                            : 'bg-slate-800/50 text-slate-100'
+                            ? 'bg-primary/10 text-foreground'
+                            : 'bg-muted/50 text-foreground'
                         }`}
                       >
                         {msg.role === 'assistant' ? (
@@ -144,7 +144,7 @@ export default function ChatInterface({
                         )}
                       </div>
                       {msg.role === 'user' && (
-                        <div className="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0" />
+                        <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
                       )}
                     </div>
                   </div>
@@ -154,7 +154,7 @@ export default function ChatInterface({
             </div>
 
             {/* Input bar */}
-            <div className="border-t border-slate-800 p-4">
+            <div className="border-t border-border p-4">
               <div className="max-w-3xl mx-auto flex gap-3">
                 <input
                   type="text"
@@ -162,12 +162,12 @@ export default function ChatInterface({
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                   placeholder="Ask a question..."
-                  className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="flex-1 px-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
-                  className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors"
+                  className="px-6 py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-medium rounded-xl transition-colors"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -175,9 +175,9 @@ export default function ChatInterface({
             </div>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-400">
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+              <MessageSquare className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p>Select a chat or create a new one</p>
             </div>
           </div>
@@ -187,17 +187,17 @@ export default function ChatInterface({
       {/* New session modal */}
       {showNewSessionModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 rounded-xl border border-slate-800 p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-white mb-4">New Chat</h3>
+          <div className="bg-card rounded-xl border border-border p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-foreground mb-4">New Chat</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-foreground/80 mb-2">
                   Knowledge Base (optional)
                 </label>
                 <select
                   value={selectedKb}
                   onChange={(e) => setSelectedKb(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                 >
                   <option value="">None</option>
                   {knowledgeBases.map((kb) => (
@@ -210,13 +210,13 @@ export default function ChatInterface({
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowNewSessionModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-muted hover:bg-muted text-foreground rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleNewSession}
-                  className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors"
                 >
                   Create
                 </button>

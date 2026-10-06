@@ -2,109 +2,124 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* Custom scrollbar for WebKit browsers */
+/*
+ * Design tokens ("Catalog"). Values are space-separated RGB triplets so Tailwind can apply
+ * opacity (bg-primary/10). The dark theme is the same structure on a deep ink-blue base.
+ */
+:root {
+  --background: 245 246 248;
+  --card: 255 255 255;
+  --foreground: 23 32 58;
+  --muted: 238 240 244;
+  --muted-foreground: 102 112 133;
+  --border: 227 230 236;
+  --primary: 47 91 234;
+  --primary-foreground: 255 255 255;
+  --accent: 233 238 254;
+  --accent-foreground: 35 59 143;
+  --success: 23 128 93;
+  --warning: 178 94 9;
+  --destructive: 192 57 43;
+  --ring: 47 91 234;
+  --code: 15 23 42;
+  --code-foreground: 216 222 240;
+}
+
+.dark {
+  --background: 14 19 32;
+  --card: 21 27 44;
+  --foreground: 230 234 245;
+  --muted: 29 36 56;
+  --muted-foreground: 142 152 179;
+  --border: 37 45 66;
+  --primary: 109 140 255;
+  --primary-foreground: 11 16 32;
+  --accent: 28 38 80;
+  --accent-foreground: 184 198 255;
+  --success: 76 197 154;
+  --warning: 224 160 80;
+  --destructive: 255 138 115;
+  --ring: 109 140 255;
+  --code: 9 14 28;
+  --code-foreground: 207 217 245;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+}
+
+/* Scrollbars */
 ::-webkit-scrollbar {
-  @apply w-1;
+  width: 8px;
+  height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100 dark:bg-slate-800;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-600 rounded-full;
+  @apply bg-border rounded-full;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-slate-500;
+  @apply bg-muted-foreground/50;
 }
 
-/* Loading animations */
-@keyframes pulse-slow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-.animate-pulse-slow {
-  animation: pulse-slow 2s infinite;
-}
-
-/* Chat message animations */
+/* Motion: only in response to something happening; respects reduced-motion */
 @keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-
-.animate-slide-in {
-  animation: slideInUp 0.3s ease-out;
-}
-
-/* Citation badge animations */
+.animate-slide-in { animation: slideInUp 0.25s ease-out; }
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out;
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-pulse-slow { animation: pulse 2s infinite; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-/* Code syntax highlighting */
+/* Code */
 pre {
-  @apply bg-slate-100 dark:bg-slate-800 rounded-lg p-4 overflow-x-auto;
+  @apply bg-code text-code-foreground rounded-lg p-4 overflow-x-auto text-[13px] leading-relaxed;
 }
-
 code {
-  @apply bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-sm;
+  @apply bg-muted px-1.5 py-0.5 rounded text-[0.9em] font-mono;
 }
-
 pre code {
-  @apply bg-transparent px-0 py-0;
+  @apply bg-transparent px-0 py-0 text-inherit;
 }
 
-/* Markdown content styles */
-.markdown-content h1 {
-  @apply text-2xl font-bold mb-4 mt-6 first:mt-0;
-}
-
-.markdown-content h2 {
-  @apply text-xl font-semibold mb-3 mt-5;
-}
-
-.markdown-content h3 {
-  @apply text-lg font-medium mb-2 mt-4;
-}
-
-.markdown-content p {
-  @apply mb-3 leading-relaxed;
-}
-
-.markdown-content ul, .markdown-content ol {
-  @apply mb-3 pl-6;
-}
-
-.markdown-content li {
-  @apply mb-1;
-}
-
-.markdown-content blockquote {
-  @apply border-l-4 border-blue-500 pl-4 italic my-4;
-}
-
-.markdown-content table {
-  @apply w-full border-collapse mb-4;
-}
-
-.markdown-content th, .markdown-content td {
-  @apply border border-slate-300 dark:border-slate-600 px-3 py-2 text-left;
-}
-
-.markdown-content th {
-  @apply bg-slate-100 dark:bg-slate-800 font-semibold;
-}
+/* Markdown content (chat answers) */
+.markdown-content h1 { @apply text-2xl font-bold mb-4 mt-6 first:mt-0; }
+.markdown-content h2 { @apply text-xl font-semibold mb-3 mt-5; }
+.markdown-content h3 { @apply text-lg font-medium mb-2 mt-4; }
+.markdown-content p { @apply mb-3 leading-relaxed; }
+.markdown-content ul, .markdown-content ol { @apply mb-3 pl-6; }
+.markdown-content ul { @apply list-disc; }
+.markdown-content ol { @apply list-decimal; }
+.markdown-content li { @apply mb-1; }
+.markdown-content blockquote { @apply border-l-4 border-primary pl-4 text-muted-foreground my-4; }
+.markdown-content table { @apply w-full border-collapse mb-4; }
+.markdown-content th, .markdown-content td { @apply border border-border px-3 py-2 text-left; }
+.markdown-content th { @apply bg-muted font-semibold; }
+.markdown-content a { @apply text-primary underline underline-offset-2; }

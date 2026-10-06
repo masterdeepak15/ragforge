@@ -12,8 +12,5 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    outDir: '../server/public',
-    emptyOutDir: true,
-  },
+  // Builds to packages/web/dist, which is where the server (and Dockerfile) expect the UI.
 });
