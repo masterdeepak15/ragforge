@@ -8,12 +8,9 @@ export async function knowledgeBaseRoutes(app: FastifyInstance) {
   app.get('/api/knowledge-bases', { onRequest: [app.authenticate] }, async (_req, reply) => {
     const rs = await db().execute({
       sql: `SELECT kb.*,
-              COUNT(DISTINCT d.id) as document_count,
-              COUNT(DISTINCT c.id) as chunk_count
+              (SELECT COUNT(*) FROM documents d WHERE d.knowledge_base_id = kb.id) AS document_count,
+              (SELECT COUNT(*) FROM document_chunks c WHERE c.knowledge_base_id = kb.id) AS chunk_count
             FROM knowledge_bases kb
-            LEFT JOIN documents d ON d.knowledge_base_id = kb.id
-            LEFT JOIN document_chunks c ON c.knowledge_base_id = kb.id
-            GROUP BY kb.id
             ORDER BY kb.created_at DESC`,
       args: [],
     });
@@ -65,13 +62,10 @@ export async function knowledgeBaseRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/api/knowledge-bases/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
     const rs = await db().execute({
       sql: `SELECT kb.*,
-              COUNT(DISTINCT d.id) as document_count,
-              COUNT(DISTINCT c.id) as chunk_count
+              (SELECT COUNT(*) FROM documents d WHERE d.knowledge_base_id = kb.id) AS document_count,
+              (SELECT COUNT(*) FROM document_chunks c WHERE c.knowledge_base_id = kb.id) AS chunk_count
             FROM knowledge_bases kb
-            LEFT JOIN documents d ON d.knowledge_base_id = kb.id
-            LEFT JOIN document_chunks c ON c.knowledge_base_id = kb.id
-            WHERE kb.id = ?
-            GROUP BY kb.id`,
+            WHERE kb.id = ?`,
       args: [req.params.id],
     });
     const kb = rs.rows[0];
@@ -79,14 +73,67 @@ export async function knowledgeBaseRoutes(app: FastifyInstance) {
     return reply.send({ ...kb, documentCount: Number(kb.document_count || 0), chunkCount: Number(kb.chunk_count || 0) });
   });
 
-  /** GET /api/knowledge-bases/:id/documents */
-  app.get<{ Params: { id: string } }>('/api/knowledge-bases/:id/documents', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const rs = await db().execute({
-      sql: `SELECT * FROM documents WHERE knowledge_base_id = ? ORDER BY created_at DESC`,
-      args: [req.params.id],
-    });
-    return reply.send(rs.rows);
-  });
+  /**
+   * GET /api/knowledge-bases/:id/documents?status=&q=&limit=&offset=
+   * Paged, newest first. `counts` and `stats` describe the whole knowledge base, not the filtered page.
+   */
+  app.get<{ Params: { id: string }; Querystring: { status?: string; q?: string; limit?: string; offset?: string } }>(
+    '/api/knowledge-bases/:id/documents',
+    { onRequest: [app.authenticate] },
+    async (req, reply) => {
+      const kbId = req.params.id;
+      const exists = await db().execute({ sql: `SELECT id FROM knowledge_bases WHERE id = ?`, args: [kbId] });
+      if (!exists.rows[0]) return reply.status(404).send({ error: 'Knowledge base not found' });
+
+      const parsedLimit = parseInt(req.query.limit ?? '', 10);
+      const limit = Number.isFinite(parsedLimit) && parsedLimit >= 1 ? Math.min(500, parsedLimit) : 100;
+      const parsedOffset = parseInt(req.query.offset ?? '', 10);
+      const offset = Number.isFinite(parsedOffset) && parsedOffset > 0 ? parsedOffset : 0;
+
+      const where = ['knowledge_base_id = ?'];
+      const args: any[] = [kbId];
+      const statuses = (req.query.status ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (statuses.length > 0) {
+        where.push(`status IN (${statuses.map(() => '?').join(',')})`);
+        args.push(...statuses);
+      }
+      const q = (req.query.q ?? '').trim();
+      if (q) {
+        // Treat the user's text literally: escape LIKE wildcards.
+        where.push(`LOWER(title) LIKE ? ESCAPE '\\'`);
+        args.push(`%${q.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      }
+      const clause = where.join(' AND ');
+
+      const [items, total, byStatus, totals] = await Promise.all([
+        db().execute({
+          sql: `SELECT * FROM documents WHERE ${clause} ORDER BY created_at DESC, id LIMIT ${limit} OFFSET ${offset}`,
+          args,
+        }),
+        db().execute({ sql: `SELECT COUNT(*) AS n FROM documents WHERE ${clause}`, args }),
+        db().execute({ sql: `SELECT status, COUNT(*) AS n FROM documents WHERE knowledge_base_id = ? GROUP BY status`, args: [kbId] }),
+        db().execute({
+          sql: `SELECT COUNT(*) AS docs,
+                       COALESCE(SUM(CASE WHEN status = 'ready' THEN 1 ELSE 0 END), 0) AS ready,
+                       COALESCE(SUM(chunk_count), 0) AS chunks,
+                       COALESCE(SUM(file_size), 0) AS bytes
+                FROM documents WHERE knowledge_base_id = ?`,
+          args: [kbId],
+        }),
+      ]);
+
+      const counts = { ready: 0, failed: 0, processing: 0, pending: 0 } as Record<string, number>;
+      for (const row of byStatus.rows as any[]) counts[row.status as string] = Number(row.n);
+      const t = totals.rows[0] as any;
+
+      return reply.send({
+        items: items.rows,
+        total: Number((total.rows[0] as any).n),
+        counts,
+        stats: { documents: Number(t.docs), readyDocuments: Number(t.ready), chunks: Number(t.chunks), bytes: Number(t.bytes) },
+      });
+    }
+  );
 
   /** DELETE /api/knowledge-bases/:id */
   app.delete<{ Params: { id: string } }>('/api/knowledge-bases/:id', { onRequest: [app.authenticate] }, async (req, reply) => {

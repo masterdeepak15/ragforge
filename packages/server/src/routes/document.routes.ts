@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { UploadService, cleanFilename } from '../uploads/upload.service.js';
+import { deleteDocuments } from '../services/document.service.js';
 
 export async function documentRoutes(app: FastifyInstance) {
   const db = () => app.db.client;
@@ -108,16 +109,18 @@ export async function documentRoutes(app: FastifyInstance) {
     }
   );
 
-  /** DELETE /api/documents/:id */
+  /** DELETE /api/documents/:id — idempotent */
   app.delete<{ Params: { id: string } }>('/api/documents/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
-    const { id } = req.params;
-
-    // Vector store cleanup (cascaded by DB foreign keys for chunks)
-    await app.db.vectorStore.deleteByDocumentId(id);
-
-    // Delete document (cascades to chunks via FK)
-    await db().execute({ sql: `DELETE FROM documents WHERE id = ?`, args: [id] });
-
+    await deleteDocuments(app, [req.params.id]);
     return reply.status(204).send();
+  });
+
+  /** POST /api/documents/bulk-delete { ids } — up to 1000 documents */
+  app.post<{ Body: { ids?: unknown } }>('/api/documents/bulk-delete', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 1000 || !ids.every((i) => typeof i === 'string')) {
+      return reply.status(400).send({ error: 'ids must be an array of 1 to 1000 document ids' });
+    }
+    return reply.send({ deleted: await deleteDocuments(app, ids as string[]) });
   });
 }
