@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
-import { createWriteStream } from 'fs';
+import { createReadStream, createWriteStream } from 'fs';
 import { mkdir, rename, rm } from 'fs/promises';
 import { extname, join } from 'path';
 import { Transform, type Readable } from 'stream';
@@ -47,7 +47,6 @@ export class UploadService {
     await mkdir(this.uploadsDir, { recursive: true });
     const documentId = randomUUID();
     const tmpPath = join(this.uploadsDir, `${documentId}.part`);
-    const finalPath = join(this.uploadsDir, documentId);
 
     const hash = createHash('sha256');
     let size = 0;
@@ -65,7 +64,49 @@ export class UploadService {
       await rm(tmpPath, { force: true });
       throw err;
     }
-    const contentHash = hash.digest('hex');
+    return this.commit({
+      documentId,
+      knowledgeBaseId: input.knowledgeBaseId,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      tmpPath,
+      contentHash: hash.digest('hex'),
+      size,
+    });
+  }
+
+  /** Hashes a fully assembled file (e.g. from a resumable upload) and records it. Consumes `partialPath`. */
+  async finalizeFile(input: { knowledgeBaseId: string; filename: string; mimeType: string; partialPath: string }): Promise<SavedUpload> {
+    await mkdir(this.uploadsDir, { recursive: true });
+    const hash = createHash('sha256');
+    let size = 0;
+    for await (const chunk of createReadStream(input.partialPath)) {
+      hash.update(chunk as Buffer);
+      size += (chunk as Buffer).length;
+    }
+    return this.commit({
+      documentId: randomUUID(),
+      knowledgeBaseId: input.knowledgeBaseId,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      tmpPath: input.partialPath,
+      contentHash: hash.digest('hex'),
+      size,
+    });
+  }
+
+  private async commit(c: {
+    documentId: string;
+    knowledgeBaseId: string;
+    filename: string;
+    mimeType: string;
+    tmpPath: string;
+    contentHash: string;
+    size: number;
+  }): Promise<SavedUpload> {
+    const { documentId, tmpPath, contentHash, size } = c;
+    const finalPath = join(this.uploadsDir, documentId);
+    const input = { knowledgeBaseId: c.knowledgeBaseId, filename: c.filename, mimeType: c.mimeType };
 
     const existing = await this.findByHash(input.knowledgeBaseId, contentHash);
     if (existing) {
@@ -132,4 +173,11 @@ export class UploadService {
     const row = rs.rows[0] as any;
     return row ? { id: row.id as string, title: row.title as string } : null;
   }
+}
+
+/** Keep only the last path segment and repair UTF-8 names that busboy decoded as latin1. */
+export function cleanFilename(raw: string): string {
+  const base = raw.split(/[\/]/).pop() || 'upload';
+  const repaired = Buffer.from(base, 'latin1').toString('utf8');
+  return repaired.includes('�') ? base : repaired;
 }

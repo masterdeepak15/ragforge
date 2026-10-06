@@ -166,6 +166,16 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
+      `CREATE TABLE IF NOT EXISTS upload_sessions (
+        id TEXT PRIMARY KEY,
+        knowledge_base_id TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        offset_bytes INTEGER NOT NULL DEFAULT 0,
+        mime_type TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
       `CREATE INDEX IF NOT EXISTS idx_documents_kb ON documents(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_kb ON document_chunks(knowledge_base_id)`,
       `CREATE INDEX IF NOT EXISTS idx_chunks_doc ON document_chunks(document_id)`,
@@ -287,6 +297,17 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       CREATE TABLE IF NOT EXISTS app_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS upload_sessions (
+        id TEXT PRIMARY KEY,
+        knowledge_base_id TEXT NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        size BIGINT NOT NULL,
+        offset_bytes BIGINT NOT NULL DEFAULT 0,
+        mime_type TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 

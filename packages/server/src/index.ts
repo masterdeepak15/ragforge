@@ -13,6 +13,7 @@ import { providerRoutes } from './routes/provider.routes.js';
 import { oauthRoutes } from './routes/oauth.routes.js';
 import { knowledgeBaseRoutes } from './routes/kb.routes.js';
 import { documentRoutes } from './routes/document.routes.js';
+import { resumableUploadRoutes, purgeStaleUploads } from './uploads/resumable.routes.js';
 import { chatRoutes } from './routes/chat.routes.js';
 import { playgroundRoutes } from './routes/playground.routes.js';
 import type { DatabaseContext } from './db/connection.js';
@@ -152,6 +153,8 @@ export async function createApp(options: CreateAppOptions = {}) {
   await app.register(oauthRoutes);
   await app.register(knowledgeBaseRoutes);
   await app.register(documentRoutes);
+  await app.register(resumableUploadRoutes);
+  purgeStaleUploads(app.db, app.dataDir).catch((err) => app.log.warn({ err }, 'upload purge failed'));
   await app.register(chatRoutes);
   await app.register(playgroundRoutes);
 

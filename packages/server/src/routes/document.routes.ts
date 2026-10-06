@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { UploadService } from '../uploads/upload.service.js';
+import { UploadService, cleanFilename } from '../uploads/upload.service.js';
 
 export async function documentRoutes(app: FastifyInstance) {
   const db = () => app.db.client;
@@ -120,10 +120,4 @@ export async function documentRoutes(app: FastifyInstance) {
 
     return reply.status(204).send();
   });
-}
-/** Keep only the last path segment and repair UTF-8 names that busboy decoded as latin1. */
-function cleanFilename(raw: string): string {
-  const base = raw.split(/[\/]/).pop() || 'upload';
-  const repaired = Buffer.from(base, 'latin1').toString('utf8');
-  return repaired.includes('\uFFFD') ? base : repaired;
 }
