@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/mcp': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
   // Builds to packages/web/dist, which is where the server (and Dockerfile) expect the UI.

@@ -11,6 +11,7 @@ const AppShell = React.lazy(() => import('./components/shell/AppShell'));
 const ChatPage = React.lazy(() => import('./pages/ChatPage'));
 const KnowledgeBasesPage = React.lazy(() => import('./pages/KnowledgeBasesPage'));
 const KnowledgeDetailPage = React.lazy(() => import('./pages/KnowledgeDetailPage'));
+const ConnectPage = React.lazy(() => import('./features/connect/ConnectPage'));
 const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const PlaygroundPage = React.lazy(() => import('./pages/PlaygroundPage'));
 
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route index element={<ChatPage />} />
         <Route path="knowledge-bases" element={<KnowledgeBasesPage />} />
         <Route path="knowledge-bases/:id" element={<KnowledgeDetailPage />} />
+        <Route path="connect" element={<ConnectPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="playground" element={<PlaygroundPage />} />
       </Route>

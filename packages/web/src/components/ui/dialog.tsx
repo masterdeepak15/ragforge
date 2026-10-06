@@ -7,7 +7,7 @@ export const Dialog = RadixDialog.Root;
 export const DialogTrigger = RadixDialog.Trigger;
 export const DialogClose = RadixDialog.Close;
 
-export function DialogContent({ title, description, children, className }: { title: string; description?: string; children: ReactNode; className?: string }) {
+export function DialogContent({ title, description, children, className, hideClose }: { title: string; description?: string; children: ReactNode; className?: string; hideClose?: boolean }) {
   return (
     <RadixDialog.Portal>
       <RadixDialog.Overlay className="fixed inset-0 z-50 bg-foreground/40 backdrop-blur-[1px]" />
@@ -26,9 +26,11 @@ export function DialogContent({ title, description, children, className }: { tit
               <RadixDialog.Description className="sr-only">{title}</RadixDialog.Description>
             )}
           </div>
-          <RadixDialog.Close className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
-            <X className="size-4" />
-          </RadixDialog.Close>
+          {!hideClose && (
+            <RadixDialog.Close className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
+              <X className="size-4" />
+            </RadixDialog.Close>
+          )}
         </div>
         {children}
       </RadixDialog.Content>

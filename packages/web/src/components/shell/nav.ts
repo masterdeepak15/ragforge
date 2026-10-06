@@ -1,4 +1,4 @@
-import { Database, FlaskConical, MessageSquare, Settings, type LucideIcon } from 'lucide-react';
+import { Database, FlaskConical, MessageSquare, Plug, Settings, type LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   to: string;
@@ -12,6 +12,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Chat', icon: MessageSquare, end: true },
   { to: '/knowledge-bases', label: 'Knowledge bases', icon: Database },
+  { to: '/connect', label: 'Connect', icon: Plug },
   { to: '/settings', label: 'Settings', icon: Settings },
   { to: '/playground', label: 'Playground', icon: FlaskConical },
 ];
