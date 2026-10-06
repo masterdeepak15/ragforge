@@ -8,6 +8,7 @@ import type { SetupStatus } from './types/api';
 const SetupPage = React.lazy(() => import('./pages/SetupPage'));
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const AppShell = React.lazy(() => import('./components/shell/AppShell'));
+const DashboardPage = React.lazy(() => import('./features/dashboard/DashboardPage'));
 const ChatPage = React.lazy(() => import('./pages/ChatPage'));
 const KnowledgeBasesPage = React.lazy(() => import('./pages/KnowledgeBasesPage'));
 const KnowledgeDetailPage = React.lazy(() => import('./pages/KnowledgeDetailPage'));
@@ -59,7 +60,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<AppShell />}>
-        <Route index element={<ChatPage />} />
+        <Route index element={<DashboardPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="chat/:id" element={<ChatPage />} />
         <Route path="knowledge-bases" element={<KnowledgeBasesPage />} />
         <Route path="knowledge-bases/:id" element={<KnowledgeDetailPage />} />
         <Route path="connect" element={<ConnectPage />} />

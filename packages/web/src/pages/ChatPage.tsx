@@ -4,6 +4,11 @@ import { apiFetch, apiStream } from '../lib/api';
 import type { ChatSession, ChatMessage, ChatStreamEvent, Citation, KnowledgeBase } from '../types/api';
 import ChatInterface from '../components/chat/ChatInterface';
 import { Loader2 } from 'lucide-react';
+import { toast } from '../components/ui/toaster';
+import { KbNotice } from '../features/chat/KbNotice';
+import { useKbReadiness } from '../features/chat/useKbReadiness';
+
+const messageOf = (e: unknown) => (e instanceof Error && e.message ? e.message : 'Something went wrong. Please try again.');
 
 export default function ChatPage() {
   const { id } = useParams();
@@ -13,6 +18,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
+  const readiness = useKbReadiness(currentSession?.knowledge_base_id ?? undefined);
 
   useEffect(() => {
     loadSessions();
@@ -32,7 +38,7 @@ export default function ChatPage() {
       const data = await apiFetch<ChatSession[]>('/api/chat/sessions');
       setSessions(data);
     } catch (e) {
-      console.error(e);
+      toast.error(`Could not load your chats. ${messageOf(e)}`);
     } finally {
       setLoading(false);
     }
@@ -43,7 +49,7 @@ export default function ChatPage() {
       const data = await apiFetch<KnowledgeBase[]>('/api/knowledge-bases');
       setKnowledgeBases(data);
     } catch (e) {
-      console.error(e);
+      toast.error(`Could not load knowledge bases. ${messageOf(e)}`);
     }
   };
 
@@ -59,7 +65,7 @@ export default function ChatPage() {
         citations: m.citations_json ? JSON.parse(m.citations_json) : undefined,
       })));
     } catch (e) {
-      console.error(e);
+      toast.error(`Could not open this chat. ${messageOf(e)}`);
     }
   };
 
@@ -72,7 +78,7 @@ export default function ChatPage() {
       setSessions((prev) => [session, ...prev]);
       navigate(`/chat/${session.id}`);
     } catch (e) {
-      console.error(e);
+      toast.error(`Could not start a chat. ${messageOf(e)}`);
     }
   };
 
@@ -121,7 +127,16 @@ export default function ChatPage() {
         }
       }
     } catch (e) {
-      console.error(e);
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== assistantMsgId),
+        {
+          id: assistantMsgId,
+          session_id: currentSession.id,
+          role: 'assistant' as const,
+          content: `I could not answer that. ${messageOf(e)}`,
+          created_at: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
@@ -142,6 +157,11 @@ export default function ChatPage() {
       onSelectSession={(s) => navigate(`/chat/${s.id}`)}
       onNewSession={createSession}
       onSendMessage={sendMessage}
+      notice={
+        currentSession?.knowledge_base_id ? (
+          <KbNotice kbId={currentSession.knowledge_base_id} ready={readiness.data?.ready} processing={readiness.data?.processing} />
+        ) : null
+      }
     />
   );
 }

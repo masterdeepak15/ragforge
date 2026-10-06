@@ -1,4 +1,4 @@
-import { Database, FlaskConical, MessageSquare, Plug, Settings, type LucideIcon } from 'lucide-react';
+import { Database, FlaskConical, LayoutDashboard, MessageSquare, Plug, Settings, type LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   to: string;
@@ -10,7 +10,8 @@ export interface NavItem {
 
 /** Main navigation, shared by the sidebar and the command palette. */
 export const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Chat', icon: MessageSquare, end: true },
+  { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/chat', label: 'Chat', icon: MessageSquare },
   { to: '/knowledge-bases', label: 'Knowledge bases', icon: Database },
   { to: '/connect', label: 'Connect', icon: Plug },
   { to: '/settings', label: 'Settings', icon: Settings },

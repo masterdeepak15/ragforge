@@ -4,6 +4,7 @@ import {
   Plus, X, ChevronDown, ExternalLink,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import { SystemInfo } from '../features/settings/SystemInfo';
 import type { AIProviderConfig } from '../types/api';
 
 const PROVIDER_META: Record<string, { label: string; color: string; hasOAuth: boolean; oauthLabel?: string }> = {
@@ -191,6 +192,8 @@ export default function SettingsPage() {
             Add Provider
           </button>
         </div>
+
+        <SystemInfo />
 
         {/* Quick OAuth connect buttons */}
         <div className="mb-8">

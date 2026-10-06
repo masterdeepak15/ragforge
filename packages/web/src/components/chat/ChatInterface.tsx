@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { Send, Plus, MessageSquare } from 'lucide-react';
 import type { ChatSession, ChatMessage, Citation, KnowledgeBase } from '../../types/api';
 import CitationDrawer from './CitationDrawer';
+import { Button } from '../ui/button';
+import { Dialog, DialogContent } from '../ui/dialog';
 
 interface Props {
   sessions: ChatSession[];
@@ -14,6 +16,8 @@ interface Props {
   onSelectSession: (session: ChatSession) => void;
   onNewSession: (kbId?: string) => void;
   onSendMessage: (content: string) => void;
+  /** Shown above the input, e.g. when the knowledge base is empty or still indexing. */
+  notice?: ReactNode;
 }
 
 export default function ChatInterface({
@@ -24,6 +28,7 @@ export default function ChatInterface({
   onSelectSession,
   onNewSession,
   onSendMessage,
+  notice,
 }: Props) {
   const [input, setInput] = useState('');
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
@@ -116,6 +121,12 @@ export default function ChatInterface({
           <>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-3xl mx-auto space-y-6">
+                {messages.length === 0 && (
+                  <div className="py-16 text-center">
+                    <p className="font-semibold">Ask about your documents</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Answers are written from your knowledge base and cite the passages they use.</p>
+                  </div>
+                )}
                 {messages.map((msg, i) => (
                   <div key={i} className="animate-slide-in">
                     <div className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
@@ -153,6 +164,12 @@ export default function ChatInterface({
               </div>
             </div>
 
+            {notice && (
+              <div className="px-4 pt-3">
+                <div className="max-w-3xl mx-auto">{notice}</div>
+              </div>
+            )}
+
             {/* Input bar */}
             <div className="border-t border-border p-4">
               <div className="max-w-3xl mx-auto flex gap-3">
@@ -161,7 +178,8 @@ export default function ChatInterface({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  placeholder="Ask a question..."
+                  aria-label="Your question"
+                  placeholder="Ask a question…"
                   className="flex-1 px-4 py-3 bg-muted border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                 />
                 <button
@@ -184,47 +202,32 @@ export default function ChatInterface({
         )}
       </div>
 
-      {/* New session modal */}
-      {showNewSessionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-card rounded-xl border border-border p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-foreground mb-4">New Chat</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-2">
-                  Knowledge Base (optional)
-                </label>
-                <select
-                  value={selectedKb}
-                  onChange={(e) => setSelectedKb(e.target.value)}
-                  className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
-                >
-                  <option value="">None</option>
-                  {knowledgeBases.map((kb) => (
-                    <option key={kb.id} value={kb.id}>
-                      {kb.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowNewSessionModal(false)}
-                  className="flex-1 px-4 py-2 bg-muted hover:bg-muted text-foreground rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleNewSession}
-                  className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors"
-                >
-                  Create
-                </button>
-              </div>
+      <Dialog open={showNewSessionModal} onOpenChange={setShowNewSessionModal}>
+        <DialogContent title="New chat" description="Pick a knowledge base to ground the answers, or chat without one.">
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="chat-kb" className="text-sm font-medium">Knowledge base</label>
+              <select
+                id="chat-kb"
+                value={selectedKb}
+                onChange={(e) => setSelectedKb(e.target.value)}
+                className="h-9 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground"
+              >
+                <option value="">None (general chat)</option>
+                {knowledgeBases.map((kb) => (
+                  <option key={kb.id} value={kb.id}>
+                    {kb.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowNewSessionModal(false)}>Cancel</Button>
+              <Button onClick={handleNewSession}>Start chat</Button>
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Citation drawer */}
       <CitationDrawer citation={openCitation} onClose={() => setOpenCitation(null)} />
