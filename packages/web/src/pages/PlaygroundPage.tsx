@@ -5,6 +5,9 @@ import type { KnowledgeBase, DocumentChunk } from '../types/api';
 
 interface RetrievalResult extends DocumentChunk {
   score: number;
+  /** How close the passage is to the question, 0 to 1. Null when it was found by keyword only. */
+  similarity: number | null;
+  keywordMatch: boolean;
   documentTitle: string;
   rank: number;
 }
@@ -183,7 +186,7 @@ export default function PlaygroundPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">
-                    Min score: {params.minScore.toFixed(2)}
+                    Min similarity: {params.minScore.toFixed(2)}
                   </label>
                   <input
                     type="range"
@@ -192,6 +195,7 @@ export default function PlaygroundPage() {
                     onChange={(e) => setParams((p) => ({ ...p, minScore: Number(e.target.value) }))}
                     className="w-full"
                   />
+                  <p className="mt-1 text-xs text-muted-foreground">Passages less similar than this are hidden, unless they contain your words.</p>
                 </div>
               </div>
             )}
@@ -240,11 +244,12 @@ export default function PlaygroundPage() {
                         <p className="text-sm font-medium text-foreground truncate">
                           {chunk.documentTitle ?? 'Unknown document'}
                         </p>
-                        <span className={`text-xs font-mono ${scoreColor(chunk.score)}`}>
-                          {chunk.score?.toFixed(3)}
+                        <span className={`text-xs font-mono ${scoreColor(chunk.similarity ?? 0)}`} title="How similar this passage is to your question">
+                          {chunk.similarity === null ? 'keyword only' : chunk.similarity.toFixed(2)}
                         </span>
+                        {chunk.keywordMatch && <span className="rounded bg-accent px-1.5 py-0.5 text-xs text-accent-foreground">keyword match</span>}
                       </div>
-                      {scoreBar(chunk.score)}
+                      {scoreBar(chunk.similarity ?? 0)}
                     </div>
                     <Hash className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   </div>
@@ -272,7 +277,7 @@ export default function PlaygroundPage() {
 
         {!loading && results.length === 0 && query && !error && (
           <div className="text-center py-12 text-muted-foreground">
-            No results found. Try a different query or lower the min score threshold.
+            No results. Try different words, or lower the minimum similarity.
           </div>
         )}
       </div>

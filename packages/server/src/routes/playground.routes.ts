@@ -63,12 +63,18 @@ export async function playgroundRoutes(app: FastifyInstance) {
       }
     }
 
+    // The minimum applies to how similar the chunk is (0 to 1), not to the rank-fusion score, which is
+    // about 0.01 to 0.03 and meaningless as a threshold. A chunk that contains the searched words is
+    // kept when keyword search is on, since the user asked for exactly that.
+    const keywordHit = (r: any) => useHybridSearch && typeof r.bm25Score === 'number' && r.bm25Score > 0;
     const chunks = results
-      .filter((r: any) => r.score >= minScore)
+      .filter((r: any) => (r.vectorScore ?? 0) >= minScore || keywordHit(r))
       .map((r: any, i: number) => ({
         id: r.id,
         content: r.content,
         score: r.score,
+        similarity: r.vectorScore ?? null,
+        keywordMatch: typeof r.bm25Score === 'number' && r.bm25Score > 0,
         rank: i + 1,
         documentId: r.documentId,
         documentTitle: docTitles[r.documentId] ?? 'Unknown',
