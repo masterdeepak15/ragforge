@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'crypto';
+import { rm } from 'fs/promises';
+import { join } from 'path';
+import { deleteDocuments } from '../services/document.service.js';
 
 export async function knowledgeBaseRoutes(app: FastifyInstance) {
   const db = () => app.db.client;
@@ -135,12 +138,23 @@ export async function knowledgeBaseRoutes(app: FastifyInstance) {
     }
   );
 
-  /** DELETE /api/knowledge-bases/:id */
+  /** DELETE /api/knowledge-bases/:id — also removes uploaded files, jobs, upload sessions and vector data */
   app.delete<{ Params: { id: string } }>('/api/knowledge-bases/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const kbId = req.params.id;
+
+    // Documents first: this cancels running jobs and deletes stored files, jobs, chunks and vectors per document.
+    const docs = await db().execute({ sql: `SELECT id FROM documents WHERE knowledge_base_id = ?`, args: [kbId] });
+    const ids = (docs.rows as any[]).map((r) => r.id as string);
+    for (let i = 0; i < ids.length; i += 200) await deleteDocuments(app, ids.slice(i, i + 200));
+
+    // Half-finished resumable uploads and their partial files.
+    const sessions = await db().execute({ sql: `SELECT id FROM upload_sessions WHERE knowledge_base_id = ?`, args: [kbId] });
+    for (const s of sessions.rows as any[]) await rm(join(app.dataDir, 'uploads', '.partial', s.id as string), { force: true });
+    await db().execute({ sql: `DELETE FROM upload_sessions WHERE knowledge_base_id = ?`, args: [kbId] });
+
     // SQLite does not enforce foreign keys by default, so remove dependents explicitly.
-    await app.db.vectorStore.deleteByKnowledgeBaseId(req.params.id);
-    await db().execute({ sql: `DELETE FROM documents WHERE knowledge_base_id = ?`, args: [req.params.id] });
-    await db().execute({ sql: `DELETE FROM knowledge_bases WHERE id = ?`, args: [req.params.id] });
+    await app.db.vectorStore.deleteByKnowledgeBaseId(kbId);
+    await db().execute({ sql: `DELETE FROM knowledge_bases WHERE id = ?`, args: [kbId] });
     return reply.status(204).send();
   });
 }

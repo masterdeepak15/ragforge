@@ -7,7 +7,7 @@ export interface RetrieverDeps {
   vectorStore: IVectorStore;
   getChunksByIds(ids: string[]): Promise<DocumentChunk[]>;
   keywordIndex: IKeywordIndex;
-  getEmbedding(text: string): Promise<number[]>;
+  getEmbedding(text: string, knowledgeBaseId: string): Promise<number[]>;
 }
 
 export class HybridRetriever {
@@ -26,7 +26,7 @@ export class HybridRetriever {
     } = query;
 
     // 1. Generate query embedding
-    const queryEmbedding = await this.deps.getEmbedding(queryText);
+    const queryEmbedding = await this.deps.getEmbedding(queryText, knowledgeBaseId);
 
     // 2. Vector search
     const vectorResults = await this.deps.vectorStore.search(

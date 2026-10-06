@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { UploadService, cleanFilename } from '../uploads/upload.service.js';
+import { UploadService, cleanFilename, repairMultipartFilename } from '../uploads/upload.service.js';
 import { deleteDocuments } from '../services/document.service.js';
 
 export async function documentRoutes(app: FastifyInstance) {
@@ -46,7 +46,7 @@ export async function documentRoutes(app: FastifyInstance) {
       }
       const saved = await uploads.saveStream({
         knowledgeBaseId: fields.knowledgeBaseId,
-        filename: cleanFilename(part.filename),
+        filename: cleanFilename(repairMultipartFilename(part.filename)),
         mimeType: part.mimetype,
         stream: part.file,
       });

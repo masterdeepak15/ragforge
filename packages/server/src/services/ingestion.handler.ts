@@ -56,6 +56,8 @@ export async function ingestDocument(job: Job, deps: IngestDeps, signal: AbortSi
       sql: `UPDATE documents SET status = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       args: [willRetry ? 'pending' : 'failed', err.message, job.documentId],
     });
+    // A document that will not be retried must not leave searchable fragments behind.
+    if (!willRetry) await deps.vectorStore.deleteByDocumentId(job.documentId).catch(() => undefined);
     if (!willRetry && !cancelled) {
       deps.events.publish({ type: 'job.failed', jobId: job.id, documentId: job.documentId, knowledgeBaseId, error: err.message });
     }
@@ -95,6 +97,15 @@ async function runIngestion(job: Job, doc: any, deps: IngestDeps, signal: AbortS
 
   const { provider, model } = await resolveEmbedder(deps.db, kb);
 
+  // Vectors from different models live in different spaces even when their length matches; never mix them.
+  const recorded = (await client.execute({ sql: `SELECT embedding_model FROM kb_vector_tables WHERE knowledge_base_id = ?`, args: [knowledgeBaseId] })).rows[0] as any;
+  if (recorded?.embedding_model && recorded.embedding_model !== model) {
+    throw new NonRetryableError(
+      `This knowledge base was indexed with "${recorded.embedding_model}", but the embedding model is now "${model}". ` +
+        `Vectors from different models cannot be mixed. Switch back to the original model, or create a new knowledge base.`
+    );
+  }
+
   // Idempotent re-runs: drop whatever a previous attempt stored.
   await deps.vectorStore.deleteByDocumentId(documentId);
 
@@ -133,6 +144,7 @@ async function runIngestion(job: Job, doc: any, deps: IngestDeps, signal: AbortS
         metadata: { ...c.metadata, chunkIndex: chunkIndex + j },
         embedding: embeddings[j],
       }));
+      throwIfCancelled(); // cancellation may have arrived while the provider was working
       await deps.vectorStore.upsertChunks(inputs);
 
       if (!dimensionRecorded) {
@@ -140,6 +152,10 @@ async function runIngestion(job: Job, doc: any, deps: IngestDeps, signal: AbortS
         await client.execute({
           sql: `UPDATE knowledge_bases SET embedding_dimension = ? WHERE id = ?`,
           args: [embeddings[0].length, knowledgeBaseId],
+        });
+        await client.execute({
+          sql: `UPDATE kb_vector_tables SET embedding_model = ? WHERE knowledge_base_id = ? AND embedding_model IS NULL`,
+          args: [model, knowledgeBaseId],
         });
       }
       chunkIndex += batch.length;
@@ -201,7 +217,7 @@ function findCut(text: string, limit: number): number {
   return limit;
 }
 
-async function resolveEmbedder(db: DatabaseContext, kb: any): Promise<{ provider: ProviderInstance; model: string }> {
+export async function resolveEmbedder(db: DatabaseContext, kb: any): Promise<{ provider: ProviderInstance; model: string }> {
   const client = db.client;
   const rs = kb.embedding_provider_id
     ? await client.execute({ sql: `SELECT * FROM ai_providers WHERE id = ?`, args: [kb.embedding_provider_id] })

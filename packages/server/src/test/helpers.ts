@@ -26,7 +26,7 @@ export interface TestApp {
  * Boots the full app on a throwaway SQLite database with an admin user, a
  * default embedding provider backed by `fakeEmbed`, and a temp data directory.
  */
-export async function createTestApp(opts: { worker?: boolean; mcpRateLimit?: number; webDir?: string } = {}): Promise<TestApp> {
+export async function createTestApp(opts: { worker?: boolean; mcpRateLimit?: number; webDir?: string; logStream?: NodeJS.WritableStream } = {}): Promise<TestApp> {
   const dataDir = await mkdtemp(join(tmpdir(), 'ragforge-test-'));
 
   ProviderFactory.register('ollama', () => ({
@@ -43,7 +43,8 @@ export async function createTestApp(opts: { worker?: boolean; mcpRateLimit?: num
     sqliteUrl: ':memory:',
     dataDir,
     jwtSecret: 'test-secret',
-    logLevel: 'silent',
+    logLevel: opts.logStream ? 'info' : 'silent',
+    logStream: opts.logStream,
     signalHandlers: false,
     startWorker: opts.worker ?? false,
     mcpRateLimit: opts.mcpRateLimit ?? 100_000,

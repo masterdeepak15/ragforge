@@ -112,12 +112,32 @@ export class JobQueue {
     }
   }
 
-  /** Re-queues running jobs whose lock is older than `olderThanMs` (crash recovery). Returns how many. */
+  /**
+   * Startup recovery for jobs left `running` by a crash or restart. Jobs with attempts left go back in the
+   * queue; a job that has already used every attempt is failed instead, so a file that crashes the process
+   * (for example by exhausting memory) cannot restart-loop the server forever. Returns how many were re-queued.
+   */
   async recoverStale(olderThanMs: number): Promise<number> {
+    const cutoff = this.now() - olderThanMs;
+    const exhausted = await this.client.execute({
+      sql: `SELECT id, document_id FROM ingestion_jobs WHERE status = 'running' AND locked_at <= ? AND attempts >= max_attempts`,
+      args: [cutoff],
+    });
+    for (const row of exhausted.rows as any[]) {
+      await this.client.execute({
+        sql: `UPDATE ingestion_jobs SET status = 'failed', error = ?, locked_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        args: ['Interrupted repeatedly by server restarts', row.id],
+      });
+      await this.client.execute({
+        sql: `UPDATE documents SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status IN ('pending', 'processing')`,
+        args: ['Indexing was interrupted by a server restart every time it was tried. The file may be too large to process.', row.document_id],
+      });
+    }
+
     const rs = await this.client.execute({
       sql: `UPDATE ingestion_jobs SET status = 'queued', locked_at = NULL, run_after = NULL, updated_at = CURRENT_TIMESTAMP
             WHERE status = 'running' AND locked_at <= ?`,
-      args: [this.now() - olderThanMs],
+      args: [cutoff],
     });
     return rs.rowsAffected;
   }

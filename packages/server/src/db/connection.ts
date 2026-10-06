@@ -178,7 +178,8 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       )`,
       `CREATE TABLE IF NOT EXISTS kb_vector_tables (
         knowledge_base_id TEXT PRIMARY KEY,
-        dimension INTEGER NOT NULL
+        dimension INTEGER NOT NULL,
+        embedding_model TEXT
       )`,
       `CREATE TABLE IF NOT EXISTS ingestion_jobs (
         id TEXT PRIMARY KEY,
@@ -227,6 +228,10 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
     await ctx.client.execute(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash)`
     );
+    const vecCols = await ctx.client.execute(`PRAGMA table_info(kb_vector_tables)`);
+    if (!vecCols.rows.some((r: any) => r.name === 'embedding_model')) {
+      await ctx.client.execute(`ALTER TABLE kb_vector_tables ADD COLUMN embedding_model TEXT`);
+    }
 
     // Full-text index over chunk text (external-content FTS5, kept in sync by triggers)
     const ftsExisted = (await ctx.client.execute(`SELECT name FROM sqlite_master WHERE name = 'chunks_fts'`)).rows.length > 0;
@@ -369,7 +374,8 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
 
       CREATE TABLE IF NOT EXISTS kb_vector_tables (
         knowledge_base_id TEXT PRIMARY KEY,
-        dimension INTEGER NOT NULL
+        dimension INTEGER NOT NULL,
+        embedding_model TEXT
       );
 
       CREATE TABLE IF NOT EXISTS ingestion_jobs (
@@ -409,6 +415,7 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id);
 
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
+      ALTER TABLE kb_vector_tables ADD COLUMN IF NOT EXISTS embedding_model TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash);
 
       ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector

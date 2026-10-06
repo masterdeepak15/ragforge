@@ -190,9 +190,13 @@ export class UploadService {
   }
 }
 
-/** Keep only the last path segment and repair UTF-8 names that busboy decoded as latin1. */
+/** Keeps only the last path segment. The name is never used as a path (files are stored under a UUID). */
 export function cleanFilename(raw: string): string {
-  const base = raw.split(/[\/]/).pop() || 'upload';
-  const repaired = Buffer.from(base, 'latin1').toString('utf8');
-  return repaired.includes('�') ? base : repaired;
+  return raw.split(/[\\/]/).pop() || 'upload';
+}
+
+/** busboy hands multipart UTF-8 file names over decoded as latin1; undo that. JSON-supplied names need no repair. */
+export function repairMultipartFilename(raw: string): string {
+  const repaired = Buffer.from(raw, 'latin1').toString('utf8');
+  return repaired.includes('\uFFFD') ? raw : repaired;
 }

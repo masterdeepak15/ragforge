@@ -10,7 +10,7 @@ import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
 import { InProcessEventBus, type EventBus } from './events/event-bus.js';
 import { JobQueue } from './queue/job-queue.js';
 import { Worker } from './queue/worker.js';
-import { ingestDocument } from './services/ingestion.handler.js';
+import { ingestDocument, resolveEmbedder } from './services/ingestion.handler.js';
 import { createKeywordIndex } from './core/search/fts.js';
 import { migrateLegacyVectors } from './core/vector/migrate-legacy.js';
 import { ProviderFactory } from './core/providers/factory.js';
@@ -60,12 +60,19 @@ declare module 'fastify' {
   }
 }
 
+/** Hides login tokens (sent as `?token=` by EventSource, which cannot set headers) before a URL is logged. */
+export function redactUrl(url: string): string {
+  return url.replace(/([?&]token=)[^&#]*/gi, '$1[redacted]');
+}
+
 export interface CreateAppOptions {
   storageMode?: 'sqlite' | 'postgres';
   sqliteUrl?: string;
   dataDir?: string;
   jwtSecret?: string;
   logLevel?: string;
+  /** Where logs go (default stdout). Tests capture them here. */
+  logStream?: NodeJS.WritableStream;
   /** Start the ingestion worker (disabled by default in tests). */
   startWorker?: boolean;
   /** Directory holding the built web app (default WEB_DIR env or packages/web/dist under the working directory). */
@@ -78,7 +85,15 @@ export interface CreateAppOptions {
 
 export async function createApp(options: CreateAppOptions = {}) {
   const storageMode = options.storageMode ?? STORAGE_MODE;
-  const app = Fastify({ logger: { level: options.logLevel ?? 'info' } });
+  const app = Fastify({
+    logger: {
+      level: options.logLevel ?? 'info',
+      ...(options.logStream ? { stream: options.logStream } : {}),
+      serializers: {
+        req: (req: any) => ({ method: req.method, url: redactUrl(req.url ?? ''), host: req.host ?? req.headers?.host, remoteAddress: req.ip, remotePort: req.socket?.remotePort }),
+      },
+    },
+  });
   app.decorate('dataDir', options.dataDir ?? process.env.DATA_DIR ?? join(process.cwd(), 'data'));
 
   app.decorate('events', new InProcessEventBus());
@@ -121,7 +136,8 @@ export async function createApp(options: CreateAppOptions = {}) {
       if (ids.length === 0) return [];
       const placeholders = ids.map(() => '?').join(',');
       const rs = await client.execute({
-        sql: `SELECT * FROM document_chunks WHERE id IN (${placeholders})`,
+        sql: `SELECT c.* FROM document_chunks c JOIN documents d ON d.id = c.document_id
+              WHERE d.status = 'ready' AND c.id IN (${placeholders})`, // never return fragments of unfinished documents
         args: ids,
       });
       return rs.rows.map((row: any) => ({
@@ -136,26 +152,19 @@ export async function createApp(options: CreateAppOptions = {}) {
       }));
     },
     keywordIndex: createKeywordIndex(app.db),
-    async getEmbedding(text: string) {
+    async getEmbedding(text: string, knowledgeBaseId: string) {
       const client: any = app.db.client;
-      const rs = await client.execute({
-        sql: `SELECT * FROM ai_providers WHERE is_default_embedding = 1 LIMIT 1`,
-        args: [],
-      });
-      const provider = rs.rows[0];
-      if (!provider) throw new Error('No default embedding provider configured');
-
-      const apiKey = provider.api_key_encrypted ? ProviderFactory.decryptApiKey(provider.api_key_encrypted as string) : undefined;
-      const instance = ProviderFactory.create(provider.provider as any, {
-        baseUrl: provider.base_url as string | undefined,
-        apiKey,
-      });
-
-      if (!instance.generateEmbeddings) throw new Error('Provider does not support embeddings');
-      const result = await instance.generateEmbeddings({
-        model: provider.default_embedding_model as string || 'nomic-embed-text',
-        texts: [text],
-      });
+      const kb = (await client.execute({ sql: `SELECT * FROM knowledge_bases WHERE id = ?`, args: [knowledgeBaseId] })).rows[0] ?? {};
+      // Same provider and model the knowledge base was indexed with (the old code always used the default provider).
+      const { provider, model } = await resolveEmbedder(app.db, kb);
+      const recorded = (await client.execute({ sql: `SELECT embedding_model FROM kb_vector_tables WHERE knowledge_base_id = ?`, args: [knowledgeBaseId] })).rows[0];
+      if (recorded?.embedding_model && recorded.embedding_model !== model) {
+        throw new Error(
+          `The embedding model is now "${model}", but this knowledge base was indexed with "${recorded.embedding_model}", so searches would return meaningless matches. ` +
+            `Switch back to the original embedding model, or create a new knowledge base.`
+        );
+      }
+      const result = await provider.generateEmbeddings!({ model, texts: [text] });
       return result.embeddings[0];
     },
   });
