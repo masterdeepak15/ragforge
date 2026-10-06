@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { loadDocument, loadUrl, chunkText } from '../core/ingestion/loaders.js';
 import { ProviderFactory, type ProviderInstance } from '../core/providers/factory.js';
 import { withRetry, type RetryOptions } from '../core/providers/retry.js';
+import { PROVIDER_SPECS } from '../core/providers/connection-test.js';
 import { EmbeddingDimensionError } from '../core/vector/vector-tables.js';
 import type { IVectorStore, VectorChunkInput } from '../core/vector/vector.interface.js';
 import type { DatabaseContext } from '../db/connection.js';
@@ -223,7 +224,7 @@ export async function resolveEmbedder(db: DatabaseContext, kb: any): Promise<{ p
     ? await client.execute({ sql: `SELECT * FROM ai_providers WHERE id = ?`, args: [kb.embedding_provider_id] })
     : await client.execute({ sql: `SELECT * FROM ai_providers WHERE is_default_embedding = 1 LIMIT 1`, args: [] });
   const row = rs.rows[0] as any;
-  if (!row) throw new NonRetryableError('No embedding provider is configured. Configure an embedding provider in Settings.');
+  if (!row) throw new NonRetryableError(await explainMissingEmbedder(client));
 
   let secret: string | object | undefined;
   if (row.api_key_encrypted) {
@@ -245,4 +246,16 @@ export async function resolveEmbedder(db: DatabaseContext, kb: any): Promise<{ p
   // Same model the retriever uses for query embeddings, so documents and queries share a vector space.
   const model: string = row.default_embedding_model || kb.embedding_model || 'nomic-embed-text';
   return { provider, model };
+}
+
+/** Says why indexing has no provider, so the user knows what to do (not just that something is missing). */
+async function explainMissingEmbedder(client: DatabaseContext['client']): Promise<string> {
+  const types = ((await client.execute({ sql: `SELECT provider FROM ai_providers`, args: [] })).rows as any[]).map((r) => r.provider as string);
+  if (types.length === 0) return 'No embedding provider is configured. Configure an embedding provider in Settings.';
+  const spec = (t: string) => PROVIDER_SPECS[t as keyof typeof PROVIDER_SPECS];
+  if (types.some((t) => spec(t)?.supportsEmbeddings)) {
+    return 'You have a provider that can index documents, but none is selected for indexing. Open Settings and press "Use for indexing" on it, then retry.';
+  }
+  const labels = [...new Set(types.map((t) => spec(t)?.label ?? t))];
+  return `${labels.join(' and ')} cannot create embeddings, so documents cannot be indexed yet. Add Ollama, OpenAI or Google Gemini in Settings, then press Retry.`;
 }

@@ -212,7 +212,8 @@ describe('ingestDocument', () => {
     try {
       const id = await upload('noprovider.txt', 'nobody to embed this');
       await expect(run(id)).rejects.toBeInstanceOf(NonRetryableError);
-      expect((await doc(id)).error_message).toMatch(/Configure an embedding provider in Settings/);
+      // A capable provider exists but is not selected, so the message points at the exact button to press.
+      expect((await doc(id)).error_message).toMatch(/Settings.*Use for indexing/);
     } finally {
       await t.app.db.client.execute(`UPDATE ai_providers SET is_default_embedding = 1`);
     }

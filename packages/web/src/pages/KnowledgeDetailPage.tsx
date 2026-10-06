@@ -15,6 +15,7 @@ import { ApiError, api } from '../lib/api-client';
 import { formatBytes, formatCount } from '../lib/format';
 import { queryKeys } from '../lib/queries';
 import { uploadFiles, type UploadHandle, type UploadItem } from '../lib/upload';
+import { IndexingNotice } from '../features/providers/IndexingNotice';
 import { ChunkInspector } from '../features/knowledge/ChunkInspector';
 import { DocumentsTable } from '../features/knowledge/DocumentsTable';
 import { ProcessingTable } from '../features/knowledge/ProcessingTable';
@@ -193,6 +194,7 @@ export default function KnowledgeDetailPage() {
         </TabsList>
 
         <TabsContent value="documents" className="space-y-6">
+          <IndexingNotice />
           <UploadDropzone ref={dropzone} onFiles={startUpload} />
           <ProcessingTable
             uploads={uploads}

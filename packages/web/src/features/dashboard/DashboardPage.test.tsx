@@ -18,7 +18,7 @@ const STATS = {
   ],
   system: { version: '1.0.0', storageMode: 'sqlite', ingestConcurrency: 2, workerRunning: true },
 };
-const SETUP = { isInitialized: true, hasAdminUser: true, hasDefaultProvider: true, hasKnowledgeBase: true, version: '1.0.0', storageMode: 'sqlite' };
+const SETUP = { isInitialized: true, hasAdminUser: true, hasDefaultProvider: true, hasEmbeddingProvider: true, hasKnowledgeBase: true, version: '1.0.0', storageMode: 'sqlite' };
 
 function renderPage(stats: unknown = STATS, setup: unknown = SETUP) {
   mockFetch([
@@ -64,7 +64,7 @@ describe('DashboardPage', () => {
   it('walks a brand new install through the first steps in order', async () => {
     renderPage(
       { ...STATS, knowledgeBases: 0, documents: { total: 0, ready: 0, processing: 0, failed: 0 }, chunks: 0, storageBytes: 0, queue: { queued: 0, running: 0, failed: 0 }, recent: [] },
-      { ...SETUP, hasDefaultProvider: false, hasKnowledgeBase: false },
+      { ...SETUP, hasDefaultProvider: false, hasEmbeddingProvider: false, hasKnowledgeBase: false },
     );
     expect(await screen.findByText('Get started')).toBeInTheDocument();
     const steps = screen.getAllByRole('listitem');
@@ -75,10 +75,22 @@ describe('DashboardPage', () => {
     expect(within(steps[3]).getByRole('link', { name: 'Connect an AI tool' })).toHaveAttribute('href', '/connect');
   });
 
+  it('does not count a provider that can only answer (Claude, Groq) as ready for indexing', async () => {
+    renderPage(
+      { ...STATS, documents: { total: 0, ready: 0, processing: 0, failed: 0 }, recent: [], chunks: 0, storageBytes: 0 },
+      { ...SETUP, hasDefaultProvider: true, hasEmbeddingProvider: false },
+    );
+    await screen.findByText('Get started');
+    const first = screen.getAllByRole('listitem')[0];
+    expect(within(first).queryByText('Done')).not.toBeInTheDocument();
+    expect(within(first).getByRole('link', { name: 'Add an AI provider for indexing' })).toHaveAttribute('href', '/settings');
+    expect(within(first).getByText(/Anthropic and Groq can only write answers/)).toBeInTheDocument();
+  });
+
   it('marks finished steps as done', async () => {
     renderPage(
       { ...STATS, documents: { total: 0, ready: 0, processing: 0, failed: 0 }, recent: [], chunks: 0, storageBytes: 0 },
-      { ...SETUP, hasDefaultProvider: true, hasKnowledgeBase: true },
+      { ...SETUP, hasDefaultProvider: true, hasEmbeddingProvider: true, hasKnowledgeBase: true },
     );
     await screen.findByText('Get started');
     const steps = screen.getAllByRole('listitem');

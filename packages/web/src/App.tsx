@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
+import { SetupStatusProvider } from './lib/setup-status';
 import { apiFetch } from './lib/api';
 import type { SetupStatus } from './types/api';
 
@@ -21,12 +22,19 @@ function AppRoutes() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [checkingSetup, setCheckingSetup] = useState(true);
 
-  useEffect(() => {
-    apiFetch<SetupStatus>('/api/setup/status')
-      .then(setSetupStatus)
-      .catch(() => setSetupStatus(null))
-      .finally(() => setCheckingSetup(false));
+  const refresh = useCallback(async () => {
+    try {
+      setSetupStatus(await apiFetch<SetupStatus>('/api/setup/status'));
+    } catch {
+      setSetupStatus(null);
+    } finally {
+      setCheckingSetup(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   if (loading || checkingSetup) {
     return (
@@ -39,12 +47,15 @@ function AppRoutes() {
     );
   }
 
+  // Mid-wizard the admin already exists and is signed in; the wizard stays up until it refreshes the status itself.
   if (!setupStatus?.isInitialized) {
     return (
-      <Routes>
-        <Route path="/setup" element={<SetupPage />} />
-        <Route path="*" element={<Navigate to="/setup" replace />} />
-      </Routes>
+      <SetupStatusProvider value={{ status: setupStatus, refresh }}>
+        <Routes>
+          <Route path="/setup" element={<SetupPage />} />
+          <Route path="*" element={<Navigate to="/setup" replace />} />
+        </Routes>
+      </SetupStatusProvider>
     );
   }
 

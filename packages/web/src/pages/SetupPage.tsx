@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { useSetupStatus } from '../lib/setup-status';
+import { setToken } from '../lib/api';
+import type { User } from '../types/api';
 import { Sparkles, Key, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function SetupPage() {
   const navigate = useNavigate();
   const { setManualUser } = useAuth();
+  const { refresh } = useSetupStatus();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,17 +28,22 @@ export default function SetupPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await apiFetch<{ token: string; user: { id: string; email: string; username: string; role: string } }>(
-        '/api/setup/init',
-        { method: 'POST', json: form }
-      );
-      setManualUser(res.user as any, res.token);
+      const res = await apiFetch<{ token: string; user?: User }>('/api/setup/init', { method: 'POST', json: form });
+      setToken(res.token);
+      const user = res.user ?? (await apiFetch<User>('/api/auth/me'));
+      setManualUser(user, res.token);
       setStep(2);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Setup is over: tell the app, then go to the overview (a stale status would bounce back here). */
+  const finish = async () => {
+    await refresh();
+    navigate('/');
   };
 
   const handleAddProvider = async (e: React.FormEvent) => {
@@ -52,7 +61,7 @@ export default function SetupPage() {
         payload.apiKey = providerForm.apiKey;
       }
       await apiFetch('/api/providers', { method: 'POST', json: payload });
-      navigate('/');
+      await finish();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -159,6 +168,12 @@ export default function SetupPage() {
                   </div>
                 </div>
 
+                {(providerForm.type === 'anthropic' || providerForm.type === 'groq') && (
+                  <p role="note" className="rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
+                    {providerForm.type === 'anthropic' ? 'Claude' : 'Groq'} can only write answers. To index documents you also need Ollama, OpenAI or Google Gemini. You can add it later in Settings.
+                  </p>
+                )}
+
                 {providerForm.type === 'ollama' && (
                   <div>
                     <label className="block text-sm font-medium text-foreground/80 mb-1">Base URL</label>
@@ -190,7 +205,7 @@ export default function SetupPage() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => navigate('/')}
+                    onClick={() => void finish()}
                     className="flex-1 px-4 py-3 bg-muted hover:bg-muted text-foreground font-semibold rounded-lg transition-colors"
                   >
                     Skip

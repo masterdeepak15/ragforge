@@ -10,11 +10,13 @@ export async function setupRoutes(app: FastifyInstance) {
 
     const userRow = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'`, args: [] });
     const providerRow = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM ai_providers WHERE is_default_llm = 1`, args: [] });
+    const embeddingRow = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM ai_providers WHERE is_default_embedding = 1`, args: [] });
     const kbRow = await db.execute({ sql: `SELECT COUNT(*) as cnt FROM knowledge_bases`, args: [] });
     const settingRow = await db.execute({ sql: `SELECT value FROM app_settings WHERE key = 'initialized'`, args: [] });
 
     const hasAdmin = Number(userRow.rows[0]?.cnt ?? 0) > 0;
     const hasProvider = Number(providerRow.rows[0]?.cnt ?? 0) > 0;
+    const hasEmbedding = Number(embeddingRow.rows[0]?.cnt ?? 0) > 0;
     const hasKb = Number(kbRow.rows[0]?.cnt ?? 0) > 0;
     const initialized = settingRow.rows[0]?.value === 'true';
 
@@ -22,6 +24,7 @@ export async function setupRoutes(app: FastifyInstance) {
       isInitialized: initialized,
       hasAdminUser: hasAdmin,
       hasDefaultProvider: hasProvider,
+      hasEmbeddingProvider: hasEmbedding,
       hasKnowledgeBase: hasKb,
       version: '1.0.0',
       storageMode: app.db.mode,
@@ -63,6 +66,8 @@ export async function setupRoutes(app: FastifyInstance) {
     });
 
     const token = app.jwt.sign({ sub: id, role: 'admin' }, { expiresIn: '7d' });
-    return reply.send({ success: true, token, userId: id });
+    const now = new Date().toISOString();
+    const user = { id, email, username, role: 'admin' as const, createdAt: now, updatedAt: now };
+    return reply.send({ success: true, token, userId: id, user });
   });
 }

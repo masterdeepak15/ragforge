@@ -25,6 +25,8 @@ export interface SetupStatus {
   isInitialized: boolean;
   hasAdminUser: boolean;
   hasDefaultProvider: boolean;
+  /** A provider that can create embeddings is selected for indexing (without one, documents cannot be indexed). */
+  hasEmbeddingProvider: boolean;
   hasKnowledgeBase: boolean;
   version: string;
   storageMode: 'sqlite' | 'postgres';

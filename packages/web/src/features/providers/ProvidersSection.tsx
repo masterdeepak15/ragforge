@@ -7,6 +7,7 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { Table, TBody, TD, TH, THead, TR } from '../../components/ui/table';
 import { toast } from '../../components/ui/toaster';
 import { AddProviderDialog } from './AddProviderDialog';
+import { indexingGap } from './indexing';
 import { useProviderSpecs, useProviders, useRemoveProvider, useSetDefault, useTestSaved } from './queries';
 import type { ProviderConfig, ProviderSpec, TestResult } from './types';
 
@@ -41,13 +42,7 @@ export function ProvidersSection() {
   const answering = list.find((p) => p.isDefaultLlm);
   const indexing = list.find((p) => p.isDefaultEmbedding);
 
-  const indexingWarning = (() => {
-    if (indexing) return null;
-    if (list.length === 0) return 'Documents cannot be indexed until you add an AI provider.';
-    const canEmbed = list.some((p) => specOf(p)?.supportsEmbeddings);
-    if (!canEmbed) return `Documents cannot be indexed yet. ${specOf(list[0])?.label ?? 'This provider'} cannot create embeddings, so add another provider for indexing (Ollama, OpenAI or Google Gemini).`;
-    return 'Documents cannot be indexed until a provider is chosen for indexing. Use the “Use … for indexing” button below.';
-  })();
+  const indexingWarning = indexingGap(list, specs);
 
   const addButton = (
     <Button onClick={() => setAdding(true)} disabled={specs.length === 0}>

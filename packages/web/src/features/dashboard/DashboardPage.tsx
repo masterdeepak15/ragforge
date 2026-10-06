@@ -13,8 +13,16 @@ import type { SetupStatus } from '../../types/api';
 import { useStats, type Stats } from './useStats';
 
 function GetStarted({ stats, setup }: { stats: Stats; setup?: SetupStatus }) {
+  // Indexing needs a provider that can create embeddings; one that only writes answers (Claude, Groq) is not enough.
+  const answerOnly = !!setup?.hasDefaultProvider && !setup?.hasEmbeddingProvider;
   const steps = [
-    { done: !!setup?.hasDefaultProvider, node: <Link to="/settings" className="font-semibold text-primary hover:underline">Add an AI provider</Link>, note: 'It turns your documents into searchable vectors and writes the answers.' },
+    {
+      done: !!setup?.hasEmbeddingProvider,
+      node: <Link to="/settings" className="font-semibold text-primary hover:underline">{answerOnly ? 'Add an AI provider for indexing' : 'Add an AI provider'}</Link>,
+      note: answerOnly
+        ? 'Anthropic and Groq can only write answers. Add Ollama, OpenAI or Google Gemini so documents can be indexed.'
+        : 'It turns your documents into searchable vectors and writes the answers.',
+    },
     { done: stats.knowledgeBases > 0, node: <Link to="/knowledge-bases" className="font-semibold text-primary hover:underline">Create a knowledge base</Link>, note: 'A collection of documents your assistants can search.' },
     { done: stats.documents.total > 0, node: <span className="font-semibold">Upload documents</span>, note: 'Drop PDFs, Word files or notes into a knowledge base. They are indexed in the background.' },
     { done: false, optional: true, node: <Link to="/connect" className="font-semibold text-primary hover:underline">Connect an AI tool</Link>, note: 'Or ask a question right here in Chat.' },
@@ -64,7 +72,7 @@ export default function DashboardPage() {
         <ErrorState title="Could not load the overview" message={(stats.error as Error)?.message ?? 'Unknown error'} onRetry={() => void stats.refetch()} />
       ) : (
         <>
-          {!(setup.data?.hasDefaultProvider && s.knowledgeBases > 0 && s.documents.total > 0) && <GetStarted stats={s} setup={setup.data} />}
+          {!(setup.data?.hasEmbeddingProvider && s.knowledgeBases > 0 && s.documents.total > 0) && <GetStarted stats={s} setup={setup.data} />}
 
           <section className="mb-8 grid gap-6 sm:grid-cols-2">
             <div>

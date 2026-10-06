@@ -33,6 +33,8 @@ function baseRoutes(over: Partial<{ page: unknown; jobs: unknown[]; kb: unknown 
     { method: 'GET', path: '/api/knowledge-bases/kb1', handler: () => over.kb ?? KB },
     { method: 'GET', path: '/api/knowledge-bases/kb1/documents', handler: () => over.page ?? PAGE },
     { method: 'GET', path: '/api/ingestion/jobs', handler: () => over.jobs ?? [] },
+    { method: 'GET', path: '/api/providers', handler: () => [{ id: 'p1', name: 'Ollama', provider: 'ollama', isDefaultLlm: true, isDefaultEmbedding: true }] },
+    { method: 'GET', path: '/api/providers/capabilities', handler: () => ({ providers: [{ type: 'ollama', label: 'Ollama', supportsLlm: true, supportsEmbeddings: true }] }) },
   ];
 }
 

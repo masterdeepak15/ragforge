@@ -26,7 +26,7 @@ export interface TestApp {
  * Boots the full app on a throwaway SQLite database with an admin user, a
  * default embedding provider backed by `fakeEmbed`, and a temp data directory.
  */
-export async function createTestApp(opts: { worker?: boolean; mcpRateLimit?: number; webDir?: string; logStream?: NodeJS.WritableStream } = {}): Promise<TestApp> {
+export async function createTestApp(opts: { worker?: boolean; mcpRateLimit?: number; webDir?: string; logStream?: NodeJS.WritableStream; skipSetup?: boolean } = {}): Promise<TestApp> {
   const dataDir = await mkdtemp(join(tmpdir(), 'ragforge-test-'));
 
   ProviderFactory.register('ollama', () => ({
@@ -52,15 +52,18 @@ export async function createTestApp(opts: { worker?: boolean; mcpRateLimit?: num
   });
   await app.ready();
 
-  const init = await app.inject({
-    method: 'POST',
-    url: '/api/setup/init',
-    payload: { username: 'admin', email: 'admin@test.local', password: 'password123' },
-  });
-  if (init.statusCode !== 200) throw new Error(`setup/init failed: ${init.statusCode} ${init.body}`);
-  const token: string = init.json().token;
+  let token = '';
+  if (!opts.skipSetup) {
+    const init = await app.inject({
+      method: 'POST',
+      url: '/api/setup/init',
+      payload: { username: 'admin', email: 'admin@test.local', password: 'password123' },
+    });
+    if (init.statusCode !== 200) throw new Error(`setup/init failed: ${init.statusCode} ${init.body}`);
+    token = init.json().token;
+  }
 
-  await app.db.client.execute({
+  if (!opts.skipSetup) await app.db.client.execute({
     sql: `INSERT INTO ai_providers (id, name, provider, is_default_embedding, default_embedding_model)
           VALUES (?, 'fake', 'ollama', 1, 'fake')`,
     args: [randomUUID()],
