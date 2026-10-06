@@ -4,10 +4,23 @@ import { Button } from '../../components/ui/button';
 import { Dialog, DialogContent } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { toast } from '../../components/ui/toaster';
+import { pickModel, splitModels } from './models';
 import { useAddProvider, useTestSettings } from './queries';
 import type { ProviderSpec, TestResult } from './types';
 
 const selectClass = 'h-9 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground';
+
+/** A dropdown of the provider's real models once they are known; a text box until then. */
+function ModelField({ id, value, onChange, options }: { id: string; value: string; onChange: (v: string) => void; options?: string[] }) {
+  if (!options?.length) return <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
+      {options.map((m) => (
+        <option key={m} value={m}>{m}</option>
+      ))}
+    </select>
+  );
+}
 
 export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean; onOpenChange: (open: boolean) => void; specs: ProviderSpec[] }) {
   const [type, setType] = useState(specs[0]?.type ?? 'ollama');
@@ -43,11 +56,18 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
     ...(spec.needsApiKey && apiKey ? { apiKey } : {}),
   });
   const canSubmit = !spec.needsApiKey || apiKey.length > 0;
+  const available = tested?.ok ? splitModels(tested.models) : null;
 
   const runTest = async () => {
     setTested(null);
     try {
-      setTested(await test.mutateAsync(settings()));
+      const result = await test.mutateAsync(settings());
+      setTested(result);
+      if (result.ok) {
+        const { chat, embedding } = splitModels(result.models);
+        if (chat.length) setLlmModel((m) => pickModel(chat, m));
+        if (spec.supportsEmbeddings && embedding.length) setEmbeddingModel((m) => pickModel(embedding, m));
+      }
     } catch (e) {
       setTested({ ok: false, message: (e as Error).message });
     }
@@ -113,18 +133,20 @@ export function AddProviderDialog({ open, onOpenChange, specs }: { open: boolean
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label htmlFor="prov-llm" className="text-sm font-medium">Model for answers</label>
-              <Input id="prov-llm" value={llmModel} onChange={(e) => setLlmModel(e.target.value)} />
+              <ModelField id="prov-llm" value={llmModel} onChange={setLlmModel} options={available?.chat} />
             </div>
             {spec.supportsEmbeddings && (
               <div className="space-y-1.5">
                 <label htmlFor="prov-emb" className="text-sm font-medium">Model for indexing (embeddings)</label>
-                <Input id="prov-emb" value={embeddingModel} onChange={(e) => setEmbeddingModel(e.target.value)} />
+                <ModelField id="prov-emb" value={embeddingModel} onChange={setEmbeddingModel} options={available?.embedding.length ? available.embedding : undefined} />
               </div>
             )}
           </div>
           {!spec.supportsEmbeddings && (
             <p className="text-[13px] text-muted-foreground">{spec.label} has no embeddings API, so it cannot index documents. Pair it with another provider for indexing.</p>
           )}
+
+          {!available && <p className="text-[13px] text-muted-foreground">Test the connection to choose from the models this provider offers.</p>}
 
           <div className="space-y-2">
             <Button variant="secondary" onClick={() => void runTest()} loading={test.isPending} disabled={!canSubmit}>

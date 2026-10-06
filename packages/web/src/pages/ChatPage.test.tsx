@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -51,5 +51,56 @@ describe('ChatPage', () => {
     renderChat(() => sse({ type: 'error', error: 'Your credit balance is too low to access the Anthropic API.' }));
     await ask('How long?');
     expect(await screen.findByText(/credit balance is too low/i)).toBeInTheDocument();
+  });
+
+  describe('while waiting for the answer', () => {
+    /** A stream the test releases by hand, so the waiting state can be observed. */
+    function heldStream() {
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({ start: (c) => (controller = c) });
+      const enc = new TextEncoder();
+      return {
+        response: () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+        send: (e: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(e)}
+
+`)),
+        end: () => controller.close(),
+      };
+    }
+
+    it('shows a thinking indicator until the first words arrive, and blocks a second send', async () => {
+      const held = heldStream();
+      renderChat(held.response);
+      await ask('How long?');
+
+      const status = await screen.findByRole('status', { name: /answer in progress/i });
+      expect(status).toHaveTextContent(/thinking/i);
+      expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+
+      held.send({ type: 'token', token: 'Seven years.' });
+      expect(await screen.findByText('Seven years.')).toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: /answer in progress/i })).not.toBeInTheDocument();
+
+      held.send({ type: 'done', messageId: 'm1', latencyMs: 5 });
+      held.end();
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Your question' })).toBeEnabled());
+    });
+
+    it('says the answer is being written once sources are found', async () => {
+      const held = heldStream();
+      renderChat(held.response);
+      await ask('How long?');
+      await screen.findByRole('status', { name: /answer in progress/i });
+      held.send({ type: 'citation', citation: { id: 'c', chunkId: 'k', documentId: 'd', documentTitle: 'Resume.pdf', citationIndex: 1, snippet: 'x', similarityScore: 0.5 } });
+      expect(await screen.findByText(/writing the answer/i)).toBeInTheDocument();
+      held.end();
+    });
+
+    it('removes the indicator when the provider fails', async () => {
+      renderChat(() => sse({ type: 'error', error: 'Provider is down.' }));
+      await ask('How long?');
+      expect(await screen.findByText(/Provider is down/)).toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: /answer in progress/i })).not.toBeInTheDocument();
+    });
   });
 });

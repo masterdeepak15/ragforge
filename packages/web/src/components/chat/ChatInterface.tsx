@@ -16,6 +16,8 @@ interface Props {
   onSelectSession: (session: ChatSession) => void;
   onNewSession: (kbId?: string) => void;
   onSendMessage: (content: string) => void;
+  /** The assistant is working on a reply that has not started to appear yet. */
+  pending?: 'thinking' | 'writing' | null;
   /** Shown above the input, e.g. when the knowledge base is empty or still indexing. */
   notice?: ReactNode;
 }
@@ -28,6 +30,7 @@ export default function ChatInterface({
   onSelectSession,
   onNewSession,
   onSendMessage,
+  pending,
   notice,
 }: Props) {
   const [input, setInput] = useState('');
@@ -38,10 +41,10 @@ export default function ChatInterface({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, pending]);
 
   const handleSend = () => {
-    if (!input.trim() || !currentSession) return;
+    if (!input.trim() || !currentSession || pending) return;
     onSendMessage(input.trim());
     setInput('');
   };
@@ -160,6 +163,19 @@ export default function ChatInterface({
                     </div>
                   </div>
                 ))}
+                {pending && (
+                  <div className="flex gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary flex-shrink-0" />
+                    <div role="status" aria-label="Answer in progress" className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1" aria-hidden>
+                        {[0, 150, 300].map((delay) => (
+                          <span key={delay} className="size-1.5 rounded-full bg-primary motion-safe:animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                        ))}
+                      </span>
+                      {pending === 'writing' ? 'Writing the answer…' : currentSession?.knowledge_base_id ? 'Searching your documents…' : 'Thinking…'}
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </div>
@@ -184,7 +200,8 @@ export default function ChatInterface({
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || !!pending}
+                  aria-label="Send"
                   className="px-6 py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-medium rounded-xl transition-colors"
                 >
                   <Send className="w-5 h-5" />

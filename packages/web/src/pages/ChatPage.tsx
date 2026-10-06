@@ -18,6 +18,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
+  /** What the assistant is doing before its first words arrive; null when idle or already writing. */
+  const [pending, setPending] = useState<'thinking' | 'writing' | null>(null);
   const readiness = useKbReadiness(currentSession?.knowledge_base_id ?? undefined);
 
   useEffect(() => {
@@ -106,6 +108,7 @@ export default function ChatPage() {
           : [...prev, { id: assistantMsgId, session_id: currentSession.id, role: 'assistant' as const, content: '', created_at: new Date().toISOString(), ...patch }],
       );
 
+    setPending('thinking');
     try {
       for await (const event of apiStream(`/api/chat/sessions/${currentSession.id}/stream`, {
         message: content,
@@ -114,13 +117,16 @@ export default function ChatPage() {
       })) {
         const ev = event as ChatStreamEvent;
         if (ev.type === 'token') {
+          setPending(null);
           assistantContent += ev.token;
           showAssistant({ content: assistantContent });
         } else if (ev.type === 'citation') {
           newCitations.push(ev.citation);
+          setPending('writing');
         } else if (ev.type === 'done') {
           showAssistant({ citations: newCitations });
         } else if (ev.type === 'error') {
+          setPending(null);
           showAssistant({ content: `I could not answer that. ${ev.error}` });
         }
       }
@@ -135,6 +141,8 @@ export default function ChatPage() {
           created_at: new Date().toISOString(),
         },
       ]);
+    } finally {
+      setPending(null);
     }
   };
 
@@ -155,6 +163,7 @@ export default function ChatPage() {
       onSelectSession={(s) => navigate(`/chat/${s.id}`)}
       onNewSession={createSession}
       onSendMessage={sendMessage}
+      pending={pending}
       notice={
         currentSession?.knowledge_base_id ? (
           <KbNotice kbId={currentSession.knowledge_base_id} ready={readiness.data?.ready} processing={readiness.data?.processing} />
