@@ -38,15 +38,31 @@ declare module 'fastify' {
     retriever: HybridRetriever;
     authenticate: any;
     upload: any;
+    dataDir: string;
   }
 }
 
-export async function createApp() {
-  const app = Fastify({ logger: { level: 'info' } });
+export interface CreateAppOptions {
+  storageMode?: 'sqlite' | 'postgres';
+  sqliteUrl?: string;
+  dataDir?: string;
+  jwtSecret?: string;
+  logLevel?: string;
+  /** Register SIGINT/SIGTERM handlers (disabled in tests). */
+  signalHandlers?: boolean;
+}
+
+export async function createApp(options: CreateAppOptions = {}) {
+  const storageMode = options.storageMode ?? STORAGE_MODE;
+  const app = Fastify({ logger: { level: options.logLevel ?? 'info' } });
+  app.decorate('dataDir', options.dataDir ?? process.env.DATA_DIR ?? join(process.cwd(), 'data'));
 
   // 1. Database setup
-  console.log(`[RAGForge] Connecting to ${STORAGE_MODE} database...`);
-  app.db = await createDatabaseContext(STORAGE_MODE, DB_OPTIONS);
+  app.log.info(`[RAGForge] Connecting to ${storageMode} database...`);
+  app.db = await createDatabaseContext(storageMode, {
+    ...DB_OPTIONS,
+    ...(options.sqliteUrl ? { sqliteUrl: options.sqliteUrl } : {}),
+  });
   await runMigrations(app.db);
 
   // 2. Initialize retrieval engine
@@ -104,7 +120,7 @@ export async function createApp() {
   });
 
   // 3. JWT authentication
-  await app.register(jwt, { secret: JWT_SECRET });
+  await app.register(jwt, { secret: options.jwtSecret ?? JWT_SECRET });
   app.decorate('authenticate', async (req: any, reply: any) => {
     try {
       await req.jwtVerify();
@@ -130,14 +146,14 @@ export async function createApp() {
   });
 
   // 6. API routes
-  await app.register(setupRoutes, { prefix: '/api/setup' });
-  await app.register(authRoutes, { prefix: '/api/auth' });
-  await app.register(providerRoutes, { prefix: '/api/providers' });
-  await app.register(oauthRoutes, { prefix: '/api/providers' });
-  await app.register(knowledgeBaseRoutes, { prefix: '/api/knowledge-bases' });
-  await app.register(documentRoutes, { prefix: '/api/documents' });
-  await app.register(chatRoutes, { prefix: '/api/chat' });
-  await app.register(playgroundRoutes, { prefix: '/api' });
+  await app.register(setupRoutes);
+  await app.register(authRoutes);
+  await app.register(providerRoutes);
+  await app.register(oauthRoutes);
+  await app.register(knowledgeBaseRoutes);
+  await app.register(documentRoutes);
+  await app.register(chatRoutes);
+  await app.register(playgroundRoutes);
 
   // 7. Catch-all for React routing (SPA)
   app.setNotFoundHandler((req, reply) => {
@@ -154,8 +170,13 @@ export async function createApp() {
     await app.db.close();
     process.exit(0);
   };
-  process.on('SIGINT', gracefulShutdown);
-  process.on('SIGTERM', gracefulShutdown);
+  if (options.signalHandlers ?? true) {
+    process.on('SIGINT', gracefulShutdown);
+    process.on('SIGTERM', gracefulShutdown);
+  }
+  app.addHook('onClose', async () => {
+    await app.db.close();
+  });
 
   return app;
 }

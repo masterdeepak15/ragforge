@@ -10,7 +10,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
@@ -20,10 +21,10 @@
     "@fastify/multipart": "^9.0.1",
     "@fastify/static": "^8.0.2",
     "@google/generative-ai": "^0.21.0",
+    "@libsql/client": "^0.14.0",
     "@mozilla/readability": "^0.5.0",
     "@ragforge/shared": "*",
     "bcryptjs": "^2.4.3",
-    "@libsql/client": "^0.14.0",
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.33.0",
@@ -43,6 +44,7 @@
     "@types/pdf-parse": "^1.1.4",
     "drizzle-kit": "^0.24.2",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.9"
   }
 }

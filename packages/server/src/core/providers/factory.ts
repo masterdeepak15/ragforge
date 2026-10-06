@@ -15,7 +15,16 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || (() => {
 export type ProviderInstance = Partial<ILLMProvider> & Partial<IEmbeddingProvider> & Partial<IOAuthProvider>;
 
 export class ProviderFactory {
+  private static overrides = new Map<string, (config: ProviderConfig) => ProviderInstance>();
+
+  /** Replace the implementation for a provider type (used by tests to inject fakes). */
+  static register(type: AIProviderType, factory: (config: ProviderConfig) => ProviderInstance): void {
+    ProviderFactory.overrides.set(type, factory);
+  }
+
   static create(type: AIProviderType, config: ProviderConfig): ProviderInstance {
+    const override = ProviderFactory.overrides.get(type);
+    if (override) return override(config);
     switch (type) {
       case 'ollama':    return new OllamaProvider(config);
       case 'openai':    return new OpenAIProvider(config);

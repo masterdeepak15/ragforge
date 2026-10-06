@@ -17,7 +17,6 @@ export async function documentRoutes(app: FastifyInstance) {
     }
   }>('/api/documents/upload', {
     onRequest: [app.authenticate],
-    preHandler: app.upload.fields([{ name: 'file', maxCount: 1 }])
   }, async (req, reply) => {
     const { knowledgeBaseId, title, sourceType, sourceUrl, text } = req.body as any;
     const files = req.files as any;

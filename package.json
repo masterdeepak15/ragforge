@@ -11,8 +11,9 @@
     "dev:server": "npm run dev --workspace=@ragforge/server",
     "dev:web": "npm run dev --workspace=@ragforge/web",
     "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
-    "start": "npm run start --workspace=@ragforge/server"
+    "typecheck": "npm run build --workspace=@ragforge/shared && npm run typecheck --workspaces",
+    "start": "npm run start --workspace=@ragforge/server",
+    "test": "npm run build --workspace=@ragforge/shared && npm test --workspaces --if-present"
   },
   "keywords": [
     "rag",
