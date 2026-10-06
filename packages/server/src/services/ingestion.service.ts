@@ -120,9 +120,6 @@ export class IngestionService {
         args: [chunks.length, totalTokens, input.documentId],
       } as any);
 
-      // Invalidate BM25 cache for this KB
-      this.retriever.invalidateCache(input.knowledgeBaseId);
-
       report({ stage: 'done', chunksTotal: chunks.length, chunksProcessed: chunks.length });
     } catch (err: any) {
       await db.execute({

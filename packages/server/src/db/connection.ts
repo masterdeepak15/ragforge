@@ -194,6 +194,29 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
     await ctx.client.execute(
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash)`
     );
+
+    // Full-text index over chunk text (external-content FTS5, kept in sync by triggers)
+    const ftsExisted = (await ctx.client.execute(`SELECT name FROM sqlite_master WHERE name = 'chunks_fts'`)).rows.length > 0;
+    await ctx.client.execute(
+      `CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content, content='document_chunks', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2')`
+    );
+    await ctx.client.execute(
+      `CREATE TRIGGER IF NOT EXISTS chunks_fts_ai AFTER INSERT ON document_chunks BEGIN
+        INSERT INTO chunks_fts(rowid, content) VALUES (new.rowid, new.content);
+      END`
+    );
+    await ctx.client.execute(
+      `CREATE TRIGGER IF NOT EXISTS chunks_fts_ad AFTER DELETE ON document_chunks BEGIN
+        INSERT INTO chunks_fts(chunks_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+      END`
+    );
+    await ctx.client.execute(
+      `CREATE TRIGGER IF NOT EXISTS chunks_fts_au AFTER UPDATE OF content ON document_chunks BEGIN
+        INSERT INTO chunks_fts(chunks_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+        INSERT INTO chunks_fts(rowid, content) VALUES (new.rowid, new.content);
+      END`
+    );
+    if (!ftsExisted) await ctx.client.execute(`INSERT INTO chunks_fts(chunks_fts) VALUES ('rebuild')`);
     return;
   }
 
@@ -318,6 +341,10 @@ export async function runMigrations(ctx: DatabaseContext): Promise<void> {
 
       ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash TEXT;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_kb_hash ON documents(knowledge_base_id, content_hash);
+
+      ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector
+        GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+      CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON document_chunks USING GIN (content_tsv);
     `);
     await client.end();
   }

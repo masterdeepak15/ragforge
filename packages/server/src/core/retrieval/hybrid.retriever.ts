@@ -1,18 +1,16 @@
-import { BM25Index, reciprocalRankFusion } from './bm25.js';
+import { reciprocalRankFusion } from './bm25.js';
+import type { IKeywordIndex } from '../search/fts.js';
 import type { IVectorStore } from '../vector/vector.interface.js';
 import type { RetrievalQuery, ScoredChunk, DocumentChunk } from '@ragforge/shared';
 
 export interface RetrieverDeps {
   vectorStore: IVectorStore;
   getChunksByIds(ids: string[]): Promise<DocumentChunk[]>;
-  getAllChunksForKb(knowledgeBaseId: string): Promise<Array<{ id: string; content: string }>>;
+  keywordIndex: IKeywordIndex;
   getEmbedding(text: string): Promise<number[]>;
 }
 
 export class HybridRetriever {
-  // Cache BM25 indexes per knowledge base — rebuilt on first query after any ingestion
-  private bm25Cache = new Map<string, { index: BM25Index; builtAt: number }>();
-
   constructor(private deps: RetrieverDeps) {}
 
   async retrieve(query: RetrievalQuery): Promise<ScoredChunk[]> {
@@ -42,9 +40,8 @@ export class HybridRetriever {
     let rrfScores: Map<string, { rrfScore: number; vectorScore?: number; bm25Score?: number }> | null = null;
 
     if (useHybridSearch) {
-      // 3. BM25 search
-      const bm25Index = await this.getBM25Index(knowledgeBaseId);
-      const bm25Results = bm25Index.search(queryText, topK * 2);
+      // 3. Keyword search (database full-text index)
+      const bm25Results = await this.deps.keywordIndex.search(knowledgeBaseId, queryText, topK * 2);
 
       // 4. Merge with RRF
       const merged = reciprocalRankFusion(vectorResults, bm25Results, {
@@ -83,28 +80,5 @@ export class HybridRetriever {
     }
 
     return scored;
-  }
-
-  /** Lazily build (or return cached) BM25 index for a knowledge base */
-  private async getBM25Index(knowledgeBaseId: string): Promise<BM25Index> {
-    const cached = this.bm25Cache.get(knowledgeBaseId);
-    // Rebuild at most once per minute
-    if (cached && Date.now() - cached.builtAt < 60_000) {
-      return cached.index;
-    }
-
-    const docs = await this.deps.getAllChunksForKb(knowledgeBaseId);
-    const index = new BM25Index();
-    for (const doc of docs) {
-      index.addDocument(doc.id, doc.content);
-    }
-
-    this.bm25Cache.set(knowledgeBaseId, { index, builtAt: Date.now() });
-    return index;
-  }
-
-  /** Invalidate BM25 cache when new docs are ingested */
-  invalidateCache(knowledgeBaseId: string) {
-    this.bm25Cache.delete(knowledgeBaseId);
   }
 }

@@ -6,6 +6,7 @@ import fastifyStatic from '@fastify/static';
 import { join } from 'path';
 import { createDatabaseContext, runMigrations } from './db/connection.js';
 import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
+import { createKeywordIndex } from './core/search/fts.js';
 import { ProviderFactory } from './core/providers/factory.js';
 import { setupRoutes } from './routes/setup.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
@@ -87,14 +88,7 @@ export async function createApp(options: CreateAppOptions = {}) {
         createdAt: row.created_at,
       }));
     },
-    async getAllChunksForKb(knowledgeBaseId: string) {
-      const client: any = app.db.client;
-      const rs = await client.execute({
-        sql: `SELECT id, content FROM document_chunks WHERE knowledge_base_id = ?`,
-        args: [knowledgeBaseId],
-      });
-      return rs.rows.map((row: any) => ({ id: row.id, content: row.content }));
-    },
+    keywordIndex: createKeywordIndex(app.db),
     async getEmbedding(text: string) {
       const client: any = app.db.client;
       const rs = await client.execute({
