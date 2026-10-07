@@ -180,6 +180,25 @@ describe('re-running and previewing', () => {
   });
 });
 
+describe('several servers for one tool (one per knowledge base)', () => {
+  it('keeps both working: adding a second named server does not cancel the key of the first', async () => {
+    const x = await installed();
+    t = x.t;
+    const hr = await addKb(x.config, 'HR');
+    const legal = await addKb(x.config, 'Legal');
+    expect(await cmdMcp(t.ctx, ['add', 'claude-desktop'], { name: 'hr-docs', kb: 'HR' })).toBe(0);
+    expect(await cmdMcp(t.ctx, ['add', 'claude-desktop'], { name: 'legal-docs', kb: 'Legal' })).toBe(0);
+
+    const servers = JSON.parse(await readFile(desktopFile(t), 'utf8')).mcpServers;
+    expect(Object.keys(servers).sort()).toEqual(['hr-docs', 'legal-docs']);
+    await withDb(x.config, async (db) => {
+      const keys = new ApiKeyService(db);
+      expect((await keys.verify(keyIn(servers['hr-docs'])))?.scopeKbIds).toEqual([hr]);
+      expect((await keys.verify(keyIn(servers['legal-docs'])))?.scopeKbIds).toEqual([legal]);
+    });
+  });
+});
+
 describe('mcp snippet', () => {
   it('prints what to paste, without creating a key', async () => {
     const x = await installed();

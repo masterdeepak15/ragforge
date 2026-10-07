@@ -101,7 +101,7 @@ export async function cmdMcp(ctx: CliContext, args: string[], flags: { kb?: stri
       return 0;
     }
 
-    const { key } = await withDb(config, (db) => createMcpApiKey(db, { name: `RAGForge CLI (${target})`, knowledgeBaseIds: scopeKbIds, replaceExisting: true }));
+    const { key } = await withDb(config, (db) => createMcpApiKey(db, { name: `RAGForge CLI (${target}: ${name})`, knowledgeBaseIds: scopeKbIds, replaceExisting: true }));
     const entry = { name, url, key };
 
     if (target === 'claude-code') {
