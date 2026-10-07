@@ -12,7 +12,7 @@ A self-hosted knowledge base for your documents. Upload as many files as you lik
 
 ![Asking questions about a document in Chat](assets/chat-resume-qa.png)
 
-Want to know how it works inside? Read the [architecture guide](docs/architecture.html) (diagrams of indexing, search, MCP and the command line, plus interview-style questions). GitHub shows `.html` files as source; [open it as a page](https://htmlpreview.github.io/?https://github.com/masterdeepak15/ragforge/blob/main/docs/architecture.html) or download it and open it in a browser.
+Want to know how it works inside? Read the [architecture guide](docs/architecture.html) (diagrams of indexing, search, MCP and the command line, plus interview-style questions). [Open the architecture guide as a web page](https://masterdeepak15.github.io/ragforge/architecture.html).
 
 ## Install with npm
 
