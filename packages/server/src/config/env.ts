@@ -1,5 +1,5 @@
 /** Keep equal to "version" in package.json (a test checks). */
-export const APP_VERSION = '1.0.2';
+export const APP_VERSION = '1.0.3';
 
 export const DEFAULT_JWT_SECRET = 'your-super-secret-jwt-key-change-in-production';
 export const DEFAULT_ENCRYPTION_KEY = '0'.repeat(63) + '1';

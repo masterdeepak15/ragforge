@@ -2,6 +2,8 @@
 
 A self-hosted knowledge base for your documents. Upload files, ask questions and get cited answers, and let Claude Code, Claude Desktop, Cursor or any MCP client search the same knowledge base. This package installs it and gives you a `ragforge` command to set it up and run it.
 
+![ragforge setup in a terminal](https://raw.githubusercontent.com/masterdeepak15/ragforge/main/assets/cli-setup.png)
+
 Needs Node.js 20 or newer. Optional: [Docker](https://docs.docker.com/get-docker/), to run a local AI (Ollama) with no accounts or API keys.
 
 ## Install

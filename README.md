@@ -10,6 +10,10 @@ A self-hosted knowledge base for your documents. Upload as many files as you lik
 - **Runs in the background.** `ragforge start`, `stop`, `restart` and `status` control it, and it can start by itself when you log in.
 - **Light and dark themes**, keyboard-friendly (press `Ctrl+K`).
 
+![Asking questions about a document in Chat](assets/chat-resume-qa.png)
+
+Want to know how it works inside? Read the [architecture guide](docs/architecture.html) (diagrams of indexing, search, MCP and the command line, plus interview-style questions). GitHub shows `.html` files as source; [open it as a page](https://htmlpreview.github.io/?https://github.com/masterdeepak15/ragforge/blob/main/docs/architecture.html) or download it and open it in a browser.
+
 ## Install with npm
 
 For one computer (a laptop, a workstation). Needs Node.js 20 or newer (developed and tested on Node 24).
@@ -20,6 +24,10 @@ ragforge setup
 ```
 
 `ragforge setup` is a short guided setup. It asks where to keep your data, which database file to use, which port, and whether to run a local AI. Press Enter to accept the suggestion for each question. When it finishes it starts RAGForge and tells you the address (<http://localhost:8080> by default). The first visit creates your admin account.
+
+This is what setup looks like in a terminal:
+
+![ragforge setup in a terminal](assets/cli-setup.png)
 
 Then, any time:
 
@@ -36,6 +44,10 @@ ragforge doctor                   # check that everything is healthy
 3. **Offers a local AI with Docker.** If Docker is installed and running, setup can start [Ollama](https://ollama.com) in a container and download two models: `nomic-embed-text` (for indexing) and a chat model sized to your computer (`llama3.2:1b` below 8 GB of memory, `llama3.2:3b` up to 32 GB, `llama3.1:8b` above). It tells you the download size and asks first. Models are kept in your data folder, so they survive removing the container. The container listens on this computer only and restarts with Docker. An NVIDIA GPU is used when Docker can use it.
 4. **Without Docker** setup says so, shows where to get it (<https://docs.docker.com/get-docker/>), and lets you use an Ollama you already run, or skip and add OpenAI or Gemini later in Settings.
 5. **Prepares the database** so the AI you chose already answers and indexes on the first start.
+
+The first visit to the address asks you to create the admin account:
+
+![Create the admin account](assets/setup-page.png)
 
 RAGForge listens on this computer only (`127.0.0.1`) unless you choose otherwise. Put it behind HTTPS before exposing it to a network.
 
@@ -135,6 +147,10 @@ Open <http://localhost:8080>. The first visit walks you through creating the adm
 4. **Playground** shows exactly which passages a search finds, with their similarity and whether a keyword matched. *Save as defaults* keeps the settings you tuned for that knowledge base.
 5. **Connect** creates API keys and shows ready-made settings for AI tools, if you prefer the UI to `ragforge mcp add`.
 
+![The Connect page](assets/connect-ai-tools.png)
+
+![Chat answering from a knowledge base](assets/chat-answers.png)
+
 ### Which providers can do what
 
 | Provider | Writes answers | Indexes documents (embeddings) |
@@ -157,6 +173,10 @@ Each knowledge base has its own search settings, under **Settings → Search** o
 | Also use keyword search | Finds exact words, names and codes that meaning-based search can miss |
 | Meaning weight / Keyword weight | How the two kinds of search are mixed |
 | Minimum similarity (0 to 1) | Passages less similar than this are left out, unless they contain the words searched for |
+
+![Search settings of a knowledge base](assets/knowledge-base-settings.png)
+
+![The Playground showing which passages a search finds](assets/playground.png)
 
 They apply everywhere: the Playground, Chat and every connected AI tool (an explicit value from a caller, such as an MCP `top_k`, still wins). The default minimum is 0.3. Many embedding models, `nomic-embed-text` included, rate almost any text at about 0.4, so a minimum of around 0.45 to 0.5 is what makes unrelated questions find nothing; the Playground shows the similarity of every result so you can pick a value for your documents.
 
@@ -279,6 +299,8 @@ packages/
   server/   Fastify API, ingestion queue, retrieval, MCP endpoint
   web/      React app (Vite, Tailwind, Radix, TanStack Query)
   cli/      the `ragforge` command (setup, start/stop, Docker + Ollama, MCP connect, autostart); published to npm
+docs/       architecture guide (architecture.html)
+assets/     screenshots used in this README
 ```
 
 ## License

@@ -1,0 +1,699 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAGForge Explained</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+/* Layout: a sticky contents list beside one reading column; diagrams may be wider than the text and scroll inside their own frame. */
+:root{
+  --bg:#F5F7F9; --surface:#FFFFFF; --ink:#1B2430; --muted:#566272; --line:#D8DEE6;
+  --accent:#0E6B63; --accent-soft:#E0F0EE; --warm:#9A4A06; --warm-soft:#FBEEDA; --code:#EBEFF4;
+  --serif:'IBM Plex Serif',Georgia,'Times New Roman',serif;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F151C; --surface:#17202A; --ink:#E5EAF0; --muted:#9AA7B6; --line:#2A3542;
+  --accent:#5ECFC3; --accent-soft:#12312E; --warm:#F0B260; --warm-soft:#33260F; --code:#1C2631; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F151C; --surface:#17202A; --ink:#E5EAF0; --muted:#9AA7B6; --line:#2A3542;
+  --accent:#5ECFC3; --accent-soft:#12312E; --warm:#F0B260; --warm-soft:#33260F; --code:#1C2631; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans);padding-inline:16px;padding-block:0}
+.shell{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;max-height:100vh;overflow:auto;padding:28px 0}
+nav.toc p{font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+nav.toc a{display:block;padding:6px 10px;margin-left:-10px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:14px;line-height:1.35}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.on{color:var(--accent);background:var(--accent-soft);font-weight:500}
+main{min-width:0;padding-block:36px 80px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.2;text-wrap:balance;margin:0}
+h1{font-size:clamp(32px,5vw,46px);margin-bottom:14px}
+h2{font-size:28px;margin:64px 0 6px;padding-top:14px;border-top:1px solid var(--line)}
+h2 .n{font:500 14px var(--mono);color:var(--accent);display:block;margin-bottom:6px}
+h3{font-size:19px;margin:30px 0 8px}
+p{margin:0 0 14px;max-width:70ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:70ch} li{margin-bottom:6px}
+a{color:var(--accent)}
+code{font:14px var(--mono);background:var(--code);padding:2px 6px;border-radius:4px}
+pre.code{font:13px/1.55 var(--mono);background:var(--code);padding:14px 16px;border-radius:8px;overflow-x:auto;margin:0 0 16px}
+.lead{font-size:19px;color:var(--muted);max-width:62ch}
+.say{background:var(--accent-soft);border-left:3px solid var(--accent);padding:14px 18px;border-radius:0 8px 8px 0;margin:18px 0;max-width:72ch}
+.say b.k{display:block;font:600 12px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.note{background:var(--warm-soft);border-left:3px solid var(--warm);padding:12px 18px;border-radius:0 8px 8px 0;margin:18px 0;max-width:72ch}
+.note b.k{display:block;font:600 12px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--warm);margin-bottom:4px}
+figure{margin:24px 0 28px}
+figure .frame{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;overflow-x:auto}
+figure svg{display:block;width:100%;min-width:640px;height:auto;color:var(--ink)}
+figcaption{font-size:14px;color:var(--muted);margin-top:10px;max-width:74ch}
+pre.mermaid{margin:0;background:transparent;min-width:560px;text-align:center}
+.table-wrap{overflow-x:auto;margin:0 0 22px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--code)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:500;white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:0 0 22px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.card h4{font:600 15px var(--sans);margin:0 0 4px;color:var(--accent)}
+.card p{font-size:14.5px;margin:0;color:var(--ink)}
+.card .in{display:block;margin-top:8px;font-size:13px;color:var(--muted)}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin:0 0 10px;max-width:78ch}
+summary{cursor:pointer;padding:12px 16px;font-weight:500;list-style:none;display:flex;gap:10px}
+summary::before{content:"+";font:500 16px var(--mono);color:var(--accent);width:14px;flex:none}
+details[open] summary::before{content:"\2212"}
+details > div{padding:0 16px 8px 40px}
+details p{font-size:15.5px}
+.paths{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin:22px 0 0}
+.paths a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--ink)}
+.paths a b{display:block;color:var(--accent);margin-bottom:2px}
+.paths a span{font-size:14px;color:var(--muted)}
+/* diagram classes (used by the inline SVGs) */
+.node{fill:var(--surface);stroke:var(--line);stroke-width:1.4}
+.hot{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.6}
+.grp{fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:6 5}
+.lbl{fill:var(--ink);font:500 13px var(--sans)}
+.sub{fill:var(--muted);font:400 11.5px var(--sans)}
+.cap{fill:var(--muted);font:600 11px var(--sans);letter-spacing:.07em;text-transform:uppercase}
+.ln{stroke:var(--ink);stroke-width:1.5;fill:none}
+.dash{stroke-dasharray:5 4}
+.bar{fill:var(--accent);opacity:.75}
+.bar2{fill:var(--warm);opacity:.7}
+@media (max-width:900px){
+  .shell{display:block}
+  nav.toc{position:static;max-height:none;padding:18px 0 0;display:flex;gap:6px;overflow-x:auto;white-space:nowrap}
+  nav.toc p{display:none} nav.toc a{margin:0;padding:6px 10px;border:1px solid var(--line);border-radius:999px}
+  h2{font-size:24px}
+}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="shell">
+<nav class="toc" aria-label="Contents">
+  <p>Contents</p>
+  <a href="#s1">What it is</a>
+  <a href="#s2">The big picture</a>
+  <a href="#s3">Words you need</a>
+  <a href="#s4">Upload and indexing</a>
+  <a href="#s5">Asking a question</a>
+  <a href="#s6">Other AI tools (MCP)</a>
+  <a href="#s7">Security</a>
+  <a href="#s8">The data</a>
+  <a href="#s9">The screens</a>
+  <a href="#s10">The command line</a>
+  <a href="#s11">Decisions</a>
+  <a href="#s12">Problems we hit</a>
+  <a href="#s13">See it yourself</a>
+  <a href="#s14">Interview kit</a>
+  <a href="#s15">Map of the code</a>
+</nav>
+
+<main>
+<h1>RAGForge Explained</h1>
+<p class="lead">What the app does, what runs in the background, and how to talk about it. Written for someone who needs to explain the project without having watched it being built.</p>
+
+<div class="paths">
+  <a href="#s14"><b>I have an interview soon</b><span>Start with the 30-second pitch, then the questions and answers.</span></a>
+  <a href="#s1"><b>I want to understand it</b><span>Read from the top. Each part builds on the one before.</span></a>
+  <a href="#s13"><b>I want to see it work</b><span>Experiments that make the background work visible.</span></a>
+</div>
+
+<h2 id="s1"><span class="n">01</span>What RAGForge is</h2>
+<p>AI chat tools know a lot about the world and nothing about <em>your</em> files. Ask one about your resume, your company handbook or last year's contracts and it will guess, or invent something confident. RAGForge fixes that. You give it your documents. When you ask a question it first <b>looks up the relevant passages in your documents</b>, then hands those passages to an AI and says "answer using only this". The answer comes back with numbered sources you can click.</p>
+<p>That pattern has a name: <b>RAG</b>, Retrieval-Augmented Generation. <i>Retrieval</i> is the lookup. <i>Generation</i> is the AI writing the answer. <i>Augmented</i> means the lookup results are added to the question.</p>
+<p>RAGForge is a complete, self-hosted product around that idea:</p>
+<ul>
+  <li><b>You upload any number of files</b> (PDF, Word, Markdown, text, or a web page address). They are indexed in the background, so the page never freezes.</li>
+  <li><b>You ask questions</b> in a chat and get cited answers.</li>
+  <li><b>Other AI tools can use your knowledge base too</b> (Claude Code, Claude Desktop, Cursor) through a standard called MCP, with keys you control.</li>
+  <li><b>It runs on your own computer</b>, with a local AI (Ollama) if you like, so documents never have to leave the machine.</li>
+  <li><b>You install it with one command</b> (<code>npm install -g @masterdeepak15/ragforge</code>) and run it with <code>ragforge start</code>.</li>
+</ul>
+
+<div class="say"><b class="k">The 30-second pitch</b>
+“RAGForge is a self-hosted knowledge base. You upload your documents, it indexes them in the background, and then you can ask questions and get answers with clickable sources, or let tools like Claude Code search the same documents over MCP. It combines meaning-based and keyword search, runs fully locally with Ollama if you want, and installs with a single npm command.”</div>
+
+<h2 id="s2"><span class="n">02</span>The big picture</h2>
+<p>Everything RAGForge does runs inside <b>one Node.js program</b> (the server). That program serves the web page, answers API requests, runs the background indexing, talks to AI providers and speaks MCP. It keeps its data in one SQLite file plus a folder of uploaded files. There is no separate queue server, no separate vector database, no Kafka.</p>
+
+<figure>
+<div class="frame">
+<svg viewBox="0 0 980 520" role="img" aria-label="System map: the browser and AI tools reach the server's front door; the server's engine reads and writes the SQLite file and the uploads folder and calls AI providers; the ragforge command starts and stops the server and the Ollama container.">
+<defs><marker id="a1" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9z" fill="currentColor"/></marker></defs>
+<text class="cap" x="20" y="30">You and your tools</text>
+<rect class="node" x="20" y="50" width="200" height="74" rx="8"/><text class="lbl" x="36" y="82">Web app in your browser</text><text class="sub" x="36" y="102">React · you click here</text>
+<rect class="node" x="20" y="170" width="200" height="86" rx="8"/><text class="lbl" x="36" y="202">Other AI tools</text><text class="sub" x="36" y="222">Claude Code · Claude Desktop</text><text class="sub" x="36" y="238">Cursor</text>
+<rect class="node" x="20" y="330" width="200" height="74" rx="8"/><text class="lbl" x="36" y="362">ragforge command</text><text class="sub" x="36" y="382">setup · start · stop · doctor</text>
+
+<text class="cap" x="300" y="30">RAGForge server (one Node.js process)</text>
+<rect class="grp" x="290" y="40" width="400" height="430" rx="12"/>
+<rect class="hot" x="310" y="60" width="360" height="112" rx="8"/><text class="cap" x="324" y="82">Front door</text>
+<rect class="node" x="324" y="92" width="150" height="28" rx="5"/><text class="lbl" x="334" y="111">REST API + login</text>
+<rect class="node" x="484" y="92" width="170" height="28" rx="5"/><text class="lbl" x="494" y="111">MCP endpoint /mcp</text>
+<rect class="node" x="324" y="128" width="330" height="28" rx="5"/><text class="lbl" x="334" y="147">Live progress stream (SSE) · serves the web app</text>
+<rect class="node" x="310" y="190" width="360" height="262" rx="8"/><text class="cap" x="324" y="212">Engine</text>
+<rect class="node" x="324" y="224" width="160" height="40" rx="5"/><text class="lbl" x="334" y="242">Upload service</text><text class="sub" x="334" y="257">files in, jobs out</text>
+<rect class="node" x="498" y="224" width="156" height="40" rx="5"/><text class="lbl" x="508" y="242">Job queue + worker</text><text class="sub" x="508" y="257">2 jobs at a time</text>
+<rect class="node" x="324" y="276" width="160" height="40" rx="5"/><text class="lbl" x="334" y="294">Retriever</text><text class="sub" x="334" y="309">meaning + keyword</text>
+<rect class="node" x="498" y="276" width="156" height="40" rx="5"/><text class="lbl" x="508" y="294">Chat service</text><text class="sub" x="508" y="309">prompt, stream, cite</text>
+<rect class="node" x="324" y="328" width="330" height="40" rx="5"/><text class="lbl" x="334" y="346">Auth and keys</text><text class="sub" x="334" y="361">login tokens · API keys · encrypted provider keys</text>
+<rect class="node" x="324" y="380" width="330" height="56" rx="5"/><text class="lbl" x="334" y="400">Provider adapters</text><text class="sub" x="334" y="417">one small adapter per AI provider, same shape</text><text class="sub" x="334" y="430">retry with back-off on rate limits</text>
+
+<text class="cap" x="770" y="30">On your disk</text>
+<rect class="node" x="760" y="50" width="200" height="104" rx="8"/><text class="lbl" x="776" y="80">SQLite database</text><text class="sub" x="776" y="100">users · documents · chunks</text><text class="sub" x="776" y="116">vectors · keyword index</text><text class="sub" x="776" y="132">chats · jobs · API keys</text>
+<rect class="node" x="760" y="174" width="200" height="60" rx="8"/><text class="lbl" x="776" y="202">Uploaded files</text><text class="sub" x="776" y="220">the data folder</text>
+<text class="cap" x="770" y="278">AI providers</text>
+<rect class="node" x="760" y="290" width="200" height="150" rx="8"/><text class="lbl" x="776" y="316">Ollama (local, Docker)</text><text class="lbl" x="776" y="342">OpenAI</text><text class="lbl" x="776" y="368">Google Gemini</text><text class="lbl" x="776" y="394">Anthropic (answers only)</text><text class="lbl" x="776" y="420">Groq (answers only)</text>
+
+<path class="ln" marker-end="url(#a1)" d="M220 82 H324"/><text class="sub" x="226" y="74">HTTP + login</text>
+<path class="ln" marker-end="url(#a1)" d="M220 212 H300 V106 H484" />
+<text class="sub" x="226" y="204">MCP + key</text>
+<path class="ln dash" marker-end="url(#a1)" d="M220 366 H290"/><text class="sub" x="226" y="358">start / stop</text>
+<path class="ln dash" marker-end="url(#a1)" d="M120 404 V496 H760 V440" /><text class="sub" x="300" y="490">starts the Ollama container in Docker</text>
+<path class="ln" marker-end="url(#a1)" d="M670 280 H710 V100 H760"/><text class="sub" x="716" y="92">SQL</text>
+<path class="ln" marker-end="url(#a1)" d="M670 300 H730 V204 H760"/><text class="sub" x="716" y="196">files</text>
+<path class="ln" marker-end="url(#a1)" d="M654 408 H760"/><text class="sub" x="680" y="400">embed · answer</text>
+</svg></div>
+<figcaption>Solid arrows carry data during normal use. Dashed arrows are the command line managing the server and the local AI container. The server is the only thing you must keep running.</figcaption>
+</figure>
+
+<h3>What is actually running in the background</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Process</th><th>What it does</th><th>Started by</th></tr></thead>
+<tbody>
+<tr><td>RAGForge server</td><td>A Node.js process with no window. Inside it: the web server, <b>two background worker loops</b> that wait for indexing jobs, and a timer that cleans up half-finished uploads.</td><td><code>ragforge start</code> (or at login if you ran <code>service install</code>)</td></tr>
+<tr><td>Ollama container</td><td>A Docker container that runs the local AI models: one for turning text into numbers (embeddings) and one for writing answers.</td><td>Setup, and again by <code>ragforge start</code></td></tr>
+<tr><td>Your browser tab</td><td>Holds an open live-progress connection (SSE) while you look at a knowledge base, so progress bars move without refreshing.</td><td>You</td></tr>
+</tbody></table></div>
+<p>The <code>ragforge</code> command itself is not a background program. It runs, does its job (start, stop, check, configure) and exits.</p>
+
+<h2 id="s3"><span class="n">03</span>Words you need</h2>
+<p>These come up in every explanation. Learn them in this order.</p>
+<div class="grid">
+<div class="card"><h4>Chunk</h4><p>A document is too big to hand to an AI whole, and too big to search as one block. So it is cut into pieces of about 1,000 characters. Each piece is a chunk, and chunks are what get searched.</p><span class="in">Here: each chunk overlaps the next by 200 characters so a sentence on a boundary is not lost.</span></div>
+<div class="card"><h4>Embedding (vector)</h4><p>A list of a few hundred numbers that captures what a piece of text <i>means</i>. Texts with similar meaning get similar numbers, even with different words.</p><span class="in">Here: the model <code>nomic-embed-text</code> makes 768 numbers per chunk.</span></div>
+<div class="card"><h4>Cosine similarity</h4><p>A score from 0 to 1 for how close two embeddings point. 1 means the same meaning, near 0 means unrelated. It is how “the meaning of your question” is compared to “the meaning of each chunk”.</p><span class="in">Here: the Playground shows this as <b>Similarity</b>.</span></div>
+<div class="card"><h4>Keyword search (BM25)</h4><p>Classic word matching, ranked by how rare and how frequent the words are. Finds exact names, codes and terms that meaning-based search can miss.</p><span class="in">Here: SQLite's built-in full-text index, FTS5.</span></div>
+<div class="card"><h4>Hybrid search + RRF</h4><p>Run both searches, then merge the two ranked lists. <b>Reciprocal Rank Fusion</b> gives each result points for its position in each list (1st place earns the most) and adds them up.</p><span class="in">Here: meaning counts 70%, keywords 30%, adjustable per knowledge base.</span></div>
+<div class="card"><h4>LLM</h4><p>The large language model that writes the answer. It only sees what the prompt contains, which is why retrieval matters.</p><span class="in">Here: Ollama, OpenAI, Gemini, Anthropic or Groq.</span></div>
+<div class="card"><h4>Knowledge base</h4><p>A named collection of documents searched together, like a folder with its own index and search settings.</p><span class="in">Each one has its own vector table.</span></div>
+<div class="card"><h4>SSE (Server-Sent Events)</h4><p>A one-way live connection from server to browser. The server pushes small messages; the browser listens. Simpler than WebSockets when only the server needs to talk.</p><span class="in">Here: indexing progress, and the words of an answer as they are written.</span></div>
+<div class="card"><h4>MCP</h4><p>Model Context Protocol: a standard way for AI tools to call outside tools. RAGForge offers four read-only tools, so Claude Code can “search my knowledge base” just as you would.</p><span class="in">Here: <code>POST /mcp</code> with an API key.</span></div>
+<div class="card"><h4>JWT and API key</h4><p>Two kinds of pass. A <b>login token</b> (JWT) proves a person signed in. An <b>API key</b> (<code>rf_…</code>) lets a program, such as an MCP client, in without a person.</p><span class="in">Here: tokens last 7 days; keys can be limited and revoked.</span></div>
+</div>
+
+<h2 id="s4"><span class="n">04</span>Upload and indexing: the background work</h2>
+<p>This is the part that is invisible when you use the app, so it is worth knowing step by step. The key idea: <b>uploading is fast and indexing is slow, so they are separated.</b> The upload request only saves the file and writes a to-do item. A worker picks up that to-do item later.</p>
+
+<figure>
+<div class="frame"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant B as Browser
+  participant A as Server API
+  participant D as Database and disk
+  participant W as Worker (background)
+  participant P as AI provider
+  B->>A: upload file (one request, or resumable pieces above 50 MB)
+  A->>D: save the file, add document "pending", add job "queued"
+  A-->>B: accepted (the page shows Processing)
+  A->>W: wake up
+  W->>D: claim the job with one atomic UPDATE, job "running", document "processing"
+  W->>W: extract the text (PDF, Word, text or web page)
+  W->>W: split into chunks (about 1000 characters, 200 overlap)
+  loop every 32 chunks
+    W->>P: turn these chunks into vectors (retry on rate limits)
+    P-->>W: one vector per chunk
+    W->>D: store chunk text, vector and keyword index entry
+    W-->>B: progress event over SSE
+  end
+  W->>D: document "ready", job "done"
+  W-->>B: document ready event
+</pre></div>
+<figcaption>What happens between “you drop a file” and “the document says Ready”. Steps 1 to 3 take a moment. Steps 4 to 13 can take minutes for a big file, and happen without you waiting.</figcaption>
+</figure>
+
+<h3>Step by step</h3>
+<ol>
+<li><b>Upload.</b> Files up to 50 MB go as one streamed request. Bigger files use a resumable upload: the browser sends the file in pieces, and if the connection drops it continues from where it stopped. Either way the file is streamed straight to disk, never held whole in memory, which is why there is no size limit.</li>
+<li><b>Duplicate check.</b> The server computes a SHA-256 fingerprint of the content. The same file uploaded twice to one knowledge base is recognised and not indexed again.</li>
+<li><b>A document row and a job row.</b> The document gets status <code>pending</code>. A row in <code>ingestion_jobs</code> gets status <code>queued</code>. The queue is a database table, so it survives restarts.</li>
+<li><b>A worker claims the job.</b> Two worker loops run (the setting <code>INGEST_CONCURRENCY</code>). Each polls every half second, or is woken immediately when a job is added. Claiming is one guarded SQL update (“set running where status is queued”), so two workers can never take the same job.</li>
+<li><b>Extract text.</b> PDFs go through <code>unpdf</code>, Word files through <code>mammoth</code>, web pages are fetched and cleaned (<code>cheerio</code> and Readability), and Markdown or text files are streamed in pieces of about 2 million characters so even a gigantic file uses bounded memory.</li>
+<li><b>Chunk.</b> A recursive splitter tries to cut at paragraph breaks first, then line breaks, then sentence ends, then commas, then spaces, so chunks end at natural places.</li>
+<li><b>Embed in batches of 32.</b> Each batch goes to the embedding provider. A rate-limit or temporary error is retried with growing delays.</li>
+<li><b>Store each batch immediately.</b> The chunk text goes into <code>document_chunks</code>, the vector into that knowledge base's own vector table, and a database trigger adds the text to the keyword index. Storing as it goes keeps memory flat and makes progress real.</li>
+<li><b>Tell the browser.</b> After each batch the worker publishes a progress event. The server relays it over SSE, and the progress bar moves.</li>
+<li><b>Finish.</b> Document <code>ready</code>, job <code>done</code>, a “ready” event is sent. From now on this document is searchable.</li>
+</ol>
+
+<h3>The two small state machines</h3>
+<p>A document and its job each move through a few states. Knowing them lets you explain what “Failed” and “Retry” mean.</p>
+<figure>
+<div class="frame"><pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> pending: uploaded
+  pending --> processing: a worker picks it up
+  processing --> ready: all chunks stored
+  processing --> pending: failed, will retry (attempt 1 or 2 of 3)
+  processing --> failed: failed for good
+  failed --> pending: you press Retry
+  ready --> [*]
+</pre></div>
+<figcaption>Document status, the one you see in the table.</figcaption>
+</figure>
+<figure>
+<div class="frame"><pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> queued
+  queued --> running: claimed by a worker
+  running --> done
+  running --> queued: retry after 5 s, then 10 s
+  running --> queued: server restarted mid-job, recovered at start-up
+  running --> failed: out of attempts, or an error retrying cannot fix
+  running --> cancelled: you cancel
+  queued --> cancelled: you cancel
+  failed --> queued: Retry (fresh attempts)
+  cancelled --> queued: Retry
+</pre></div>
+<figcaption>Job status, kept in the <code>ingestion_jobs</code> table.</figcaption>
+</figure>
+
+<h3>What a chunk looks like</h3>
+<figure>
+<div class="frame">
+<svg viewBox="0 0 900 200" role="img" aria-label="Three chunks of about 1000 characters cut from one long text, each overlapping the next by 200 characters.">
+<text class="cap" x="10" y="22">One long document, read left to right</text>
+<rect class="node" x="10" y="34" width="880" height="26" rx="4"/><text class="sub" x="20" y="51">…long text of the PDF, as one stream of characters…</text>
+<rect class="bar" x="10" y="84" width="340" height="30" rx="4"/><text class="lbl" x="22" y="104" style="fill:var(--bg)">Chunk 1</text>
+<rect class="bar2" x="282" y="118" width="340" height="30" rx="4"/><text class="lbl" x="294" y="138" style="fill:var(--bg)">Chunk 2</text>
+<rect class="bar" x="554" y="152" width="340" height="30" rx="4"/><text class="lbl" x="566" y="172" style="fill:var(--bg)">Chunk 3</text>
+<rect x="282" y="80" width="68" height="70" fill="none" stroke="currentColor" stroke-dasharray="4 3"/><text class="sub" x="358" y="98">overlap (200 characters)</text>
+<rect x="554" y="114" width="68" height="70" fill="none" stroke="currentColor" stroke-dasharray="4 3"/><text class="sub" x="630" y="132">overlap again</text>
+</svg></div>
+<figcaption>Every chunk repeats the last part of the one before. That way an answer that sits on a boundary still appears whole in at least one chunk. The cut points follow paragraphs and sentences where possible, so real chunks vary in length.</figcaption>
+</figure>
+
+<h3>What can go wrong, and what the app does</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Situation</th><th>What happens</th></tr></thead>
+<tbody>
+<tr><td>The AI provider says “slow down” (HTTP 429) or has a hiccup</td><td>The batch is retried with growing delays. The queue slows down instead of failing.</td></tr>
+<tr><td>No text in the file (empty, or a scanned PDF with no text layer)</td><td>Fails at once with “No extractable text”. Retrying cannot help, so it does not retry. There is no OCR.</td></tr>
+<tr><td>No embedding provider set up, or one that cannot embed (Claude, Groq)</td><td>Fails at once with a message that names what to add.</td></tr>
+<tr><td>You changed the embedding model after indexing</td><td>Fails with a clear message. Vectors from different models are not comparable, even if they have the same length, so mixing them would silently give bad answers.</td></tr>
+<tr><td>The server is stopped or crashes in the middle of a job</td><td>On the next start, jobs still marked “running” are put back in the queue. A job that already used all 3 attempts is failed instead, so a file that crashes the server cannot cause an endless restart loop.</td></tr>
+<tr><td>You cancel</td><td>A running job is told to stop (an abort signal checked between batches). The half-stored chunks are removed.</td></tr>
+<tr><td>You retry a failed document</td><td>The old partial chunks are deleted first, so the run starts clean and re-running is always safe.</td></tr>
+</tbody></table></div>
+
+<h2 id="s5"><span class="n">05</span>Asking a question</h2>
+<p>When you type a question in Chat, three things must happen: find the right passages, build a prompt, and stream the answer back. The knowledge base chosen for that chat decides which documents are searched. A chat set to “None” skips the search entirely and the AI answers from general knowledge, which is why the app now warns you about it.</p>
+
+<figure>
+<div class="frame"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant B as Browser
+  participant A as Server API
+  participant R as Retriever
+  participant D as Database
+  participant E as Embedding provider
+  participant L as Answering provider
+  B->>A: your question (stream request for this chat)
+  A->>D: save your message, load chat history and the knowledge base settings
+  A->>R: find passages for the question
+  R->>E: turn the question into a vector (same model as the documents)
+  R->>D: meaning search and keyword search, then merge
+  R-->>A: the best passages (6 by default)
+  A-->>B: sources first (citation events)
+  A->>L: prompt = instructions + passages + history + question
+  loop as the AI writes
+    L-->>A: next piece of text
+    A-->>B: token event, appears on screen
+  end
+  A->>D: save the whole answer with its sources
+  A-->>B: done event
+</pre></div>
+<figcaption>Steps 4 to 6 are the retrieval half of RAG. Steps 8 to 10 are the generation half.</figcaption>
+</figure>
+
+<h3>How the best passages are found</h3>
+<figure>
+<div class="frame">
+<svg viewBox="0 0 960 250" role="img" aria-label="The question becomes a vector. A meaning search and a keyword search each return a ranked list; reciprocal rank fusion merges them into the top passages, which go into the prompt.">
+<defs><marker id="a2" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9z" fill="currentColor"/></marker></defs>
+<rect class="node" x="10" y="95" width="120" height="60" rx="8"/><text class="lbl" x="24" y="122">Your</text><text class="lbl" x="24" y="140">question</text>
+<rect class="hot" x="190" y="30" width="230" height="74" rx="8"/><text class="lbl" x="204" y="56">Meaning search</text><text class="sub" x="204" y="74">question → 768 numbers, compare with</text><text class="sub" x="204" y="90">every chunk (cosine), keep the top 12</text>
+<rect class="hot" x="190" y="146" width="230" height="74" rx="8"/><text class="lbl" x="204" y="172">Keyword search</text><text class="sub" x="204" y="190">words in the question vs the full-text</text><text class="sub" x="204" y="206">index (BM25), keep the top 12</text>
+<rect class="node" x="490" y="86" width="190" height="78" rx="8"/><text class="lbl" x="504" y="112">Merge (RRF)</text><text class="sub" x="504" y="131">points for each rank,</text><text class="sub" x="504" y="147">meaning ×0.7, keywords ×0.3</text>
+<rect class="node" x="750" y="86" width="200" height="78" rx="8"/><text class="lbl" x="764" y="112">Top 6 passages</text><text class="sub" x="764" y="131">go into the prompt,</text><text class="sub" x="764" y="147">numbered [1] to [6]</text>
+<path class="ln" marker-end="url(#a2)" d="M130 115 C160 115 160 67 190 67"/>
+<path class="ln" marker-end="url(#a2)" d="M130 135 C160 135 160 183 190 183"/>
+<path class="ln" marker-end="url(#a2)" d="M420 67 C455 67 455 110 490 110"/>
+<path class="ln" marker-end="url(#a2)" d="M420 183 C455 183 455 140 490 140"/>
+<path class="ln" marker-end="url(#a2)" d="M680 125 H750"/>
+</svg></div>
+<figcaption>“Top 12” is twice the number you finally want. Fetching extra from each list gives the merge something to work with. Both searches only look inside the chosen knowledge base.</figcaption>
+</figure>
+
+<h3>The merge, with real numbers</h3>
+<p>Each result earns <code>weight ÷ (60 + rank)</code> points from each list it appears in. The 60 is a standard constant that keeps first place from running away with the score. Four passages, for example:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Passage</th><th>Rank in meaning search</th><th>Rank in keyword search</th><th>Points</th></tr></thead>
+<tbody>
+<tr><td>A</td><td>1st</td><td>3rd</td><td>0.7÷61 + 0.3÷63 = <b>0.0162</b></td></tr>
+<tr><td>B</td><td>2nd</td><td>1st</td><td>0.7÷62 + 0.3÷61 = <b>0.0162</b> (just behind A)</td></tr>
+<tr><td>C</td><td>3rd</td><td>not found</td><td>0.7÷63 = <b>0.0111</b></td></tr>
+<tr><td>D</td><td>not found</td><td>2nd</td><td>0.3÷62 = <b>0.0048</b></td></tr>
+</tbody></table></div>
+<p>A passage that appears in <i>both</i> lists beats one that is only first in a single list. That is the whole point of hybrid search. It also explains why those tiny numbers (about 0.016) appear as the “score” of results. They are rank points, not similarity.</p>
+<div class="note"><b class="k">Why “whatware” found something</b>Meaning embeddings rate almost any two texts around 0.4 similar, so a nonsense word still lands near <i>something</i>. The fix is the <b>minimum similarity</b> setting (default 0.3, try 0.45 to 0.5 for <code>nomic-embed-text</code>). Passages below it are dropped unless they contain the exact words searched for.</div>
+
+<h3>The prompt the AI sees</h3>
+<pre class="code">You are a helpful AI assistant with access to a knowledge base. Answer clearly and concisely.
+
+Use the following context to answer the user's question. Cite sources with [N] notation:
+
+[1] Deepak_Resume.pdf
+…text of passage 1…
+---
+[2] Deepak_Resume.pdf
+…text of passage 2…
+
+(then the earlier messages of this chat, then your new question)</pre>
+<p>The AI writes “…at Ador Powertron [1]”. The page turns each <code>[1]</code> into a button that opens the exact source passage. The model never needs to be trusted to remember your documents: it is shown the relevant parts every time.</p>
+
+<h3>Per-knowledge-base search settings</h3>
+<p>Passages per search, keyword search on or off, the two weights and the minimum similarity are stored per knowledge base (as JSON in the <code>retrieval_settings</code> column). The Playground, Chat and MCP all read the same settings, so tuning once changes how every one of them answers. Anything a caller sends explicitly, such as an MCP <code>top_k</code>, wins over the saved value.</p>
+
+<h2 id="s6"><span class="n">06</span>Other AI tools over MCP</h2>
+<p>MCP lets Claude Code, Claude Desktop or Cursor use RAGForge as a tool. The tool is <i>read-only</i>: it can look things up and never change anything.</p>
+<figure>
+<div class="frame"><pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Claude Code (or Desktop, Cursor)
+  participant M as /mcp endpoint
+  participant K as Key check
+  participant R as Retriever
+  C->>M: POST /mcp with Authorization Bearer rf_...
+  M->>K: hash the key (SHA-256), find it, check not revoked, load its scope, count requests (60 per minute)
+  K-->>M: allowed knowledge bases (all, or a chosen list)
+  C->>M: tool call list_knowledge_bases
+  M-->>C: names, descriptions and counts, only for allowed ones
+  C->>M: tool call search_knowledge (query, optional knowledge_base)
+  M->>R: search each target knowledge base with its own saved settings
+  R-->>M: passages with their document titles
+  M-->>C: results as JSON text
+</pre></div>
+<figcaption>The server keeps no session between calls. Each request is checked from scratch, which makes it simple and safe to run.</figcaption>
+</figure>
+
+<h3>“There are many knowledge bases, how does it pick?”</h3>
+<ul>
+<li>The AI first calls <code>list_knowledge_bases</code> and reads each <b>name and description</b>. The tool descriptions tell it to do exactly that. So give every knowledge base a one-line description.</li>
+<li>It then passes the id of the one that fits to <code>search_knowledge</code>. If it passes none, <b>all</b> knowledge bases the key allows are searched and the results are merged by score.</li>
+<li>You decide what it can see: <code>ragforge mcp add claude-code --kb "HR,Legal"</code> creates a key limited to those two. For a hard split, register one server per knowledge base: <code>--name hr-docs --kb HR</code>, <code>--name legal-docs --kb Legal</code>. The AI then sees two tools and picks by name, much like choosing in the chat screen.</li>
+</ul>
+
+<h2 id="s7"><span class="n">07</span>Security: who may do what</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Thing</th><th>How it is protected</th></tr></thead>
+<tbody>
+<tr><td>First admin</td><td>The setup screen works once. The password is hashed with bcrypt (cost 12). After setup, the setup endpoint answers “already set up”.</td></tr>
+<tr><td>Login</td><td>Email and password return a signed login token (JWT), valid 7 days. Every API call needs it. The signing secret is generated randomly by <code>ragforge setup</code>.</td></tr>
+<tr><td>Live progress (SSE)</td><td>A browser's event stream cannot send headers, so the token travels in the address. Server logs replace it with <code>[redacted]</code>.</td></tr>
+<tr><td>API keys for tools</td><td>Format <code>rf_</code> plus 32 random bytes. Only the SHA-256 hash is stored, so a copy of the database does not reveal usable keys. A key can be limited to chosen knowledge bases, is rate-limited, and stops working the moment it is revoked.</td></tr>
+<tr><td>AI provider keys</td><td>Encrypted in the database with AES-256-GCM using the <code>ENCRYPTION_KEY</code>. Lose that key and saved provider keys cannot be read, so it is backed up with the data.</td></tr>
+<tr><td>Network exposure</td><td>The <code>ragforge</code> command makes the server listen on this computer only (<code>127.0.0.1</code>). Listening on the whole network is an explicit choice.</td></tr>
+<tr><td>Production safety</td><td>With <code>NODE_ENV=production</code> the server refuses to start with a missing or placeholder secret, and lists every configuration problem at once.</td></tr>
+<tr><td>Uninstall</td><td><code>uninstall --data</code> only deletes a folder that holds RAGForge's marker file, never your home folder, and asks you to type <code>delete</code>.</td></tr>
+</tbody></table></div>
+<div class="note"><b class="k">Honest limit</b>Documents are treated as trusted text. A document containing instructions aimed at the AI (“ignore the rules and…”) could influence an answer. The MCP tools being read-only limits the damage. Hardening this is a sensible next step.</div>
+
+<h2 id="s8"><span class="n">08</span>The data</h2>
+<p>One SQLite file holds everything except the original uploads. These are the tables and how they connect.</p>
+<figure>
+<div class="frame"><pre class="mermaid">
+erDiagram
+  knowledge_bases ||--o{ documents : contains
+  documents ||--o{ document_chunks : "is split into"
+  knowledge_bases ||--o{ document_chunks : owns
+  knowledge_bases ||--|| kb_vector_tables : "keeps vectors via"
+  documents ||--o{ ingestion_jobs : "is indexed by"
+  knowledge_bases ||--o{ chat_sessions : "is searched by"
+  chat_sessions ||--o{ chat_messages : holds
+  knowledge_bases {
+    text id
+    text name
+    text description
+    int chunk_size
+    int chunk_overlap
+    text retrieval_settings
+  }
+  documents {
+    text id
+    text status
+    text content_hash
+    int chunk_count
+  }
+  document_chunks {
+    text id
+    text content
+    int chunk_index
+  }
+  ingestion_jobs {
+    text id
+    text status
+    int attempts
+  }
+</pre></div>
+<figcaption>Simplified: only the important columns are shown.</figcaption>
+</figure>
+<div class="table-wrap"><table>
+<thead><tr><th>Table</th><th>Holds</th></tr></thead>
+<tbody>
+<tr><td>users</td><td>The admin account (email, bcrypt hash, role).</td></tr>
+<tr><td>ai_providers</td><td>Each configured AI provider: type, address, encrypted key, default models, and which one answers and which one indexes.</td></tr>
+<tr><td>knowledge_bases</td><td>Name, description, chunk size and overlap, the embedding model and vector length, and the search settings.</td></tr>
+<tr><td>documents</td><td>One row per file or web page: type, size, status, error message, content fingerprint, chunk count.</td></tr>
+<tr><td>document_chunks</td><td>The text of every chunk, in order, with its page or section details.</td></tr>
+<tr><td><code>cv_&lt;id&gt;</code> tables</td><td>One <b>vector table per knowledge base</b> (a column type that stores the numbers). Separate tables because different knowledge bases can use models with different vector lengths.</td></tr>
+<tr><td>kb_vector_tables</td><td>Which vector table belongs to which knowledge base, its length, and which model made the vectors (the “do not mix models” guard).</td></tr>
+<tr><td>chunks_fts</td><td>The full-text index over chunk text, kept in sync by database triggers.</td></tr>
+<tr><td>ingestion_jobs</td><td>The background to-do list: status, attempts, progress, retry time.</td></tr>
+<tr><td>upload_sessions</td><td>Bookkeeping for resumable uploads in progress. Stale ones are purged after a day.</td></tr>
+<tr><td>chat_sessions, chat_messages</td><td>Your chats and every message, with the sources used in each answer.</td></tr>
+<tr><td>api_keys</td><td>Key hash, visible prefix, allowed knowledge bases, last use, revoked time.</td></tr>
+<tr><td>app_settings</td><td>Small facts such as “setup finished”.</td></tr>
+</tbody></table></div>
+<p>On disk, in a default install: <code>~/.ragforge/config.json</code> (settings and secrets), <code>~/.ragforge/data/ragforge.db</code> (the database), <code>~/.ragforge/data/uploads/</code> (the files) and <code>~/.ragforge/data/ollama/</code> (the downloaded AI models). Each of these locations can be moved during setup.</p>
+
+<h2 id="s9"><span class="n">09</span>The screens</h2>
+<p>The web app is a React single-page app built with Vite and styled with Tailwind and accessible Radix components. In production the same Node server serves the built files, so there is only one thing to run.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Screen</th><th>What it is for</th></tr></thead>
+<tbody>
+<tr><td>Overview</td><td>Counts, recent documents, and a first-steps checklist that notices missing pieces (no provider, a provider that cannot index).</td></tr>
+<tr><td>Chat</td><td>Cited answers. Each chat has a knowledge base selector, a progress indicator while waiting, and a delete button with a confirmation.</td></tr>
+<tr><td>Knowledge bases</td><td>A list with a <code>⋯</code> menu. The detail page has the upload area, a live processing table, the documents table (virtualised so thousands of rows stay fast), and Settings with the search controls.</td></tr>
+<tr><td>Connect</td><td>Create and revoke API keys, copy ready-made settings for AI tools, and test the connection.</td></tr>
+<tr><td>Settings</td><td>Add and test AI providers. After a successful test the model fields become dropdowns of the models that provider really has.</td></tr>
+<tr><td>Playground</td><td>Run a search and see which passages come back, their similarity and whether a keyword matched. Tune the settings, then save them as defaults.</td></tr>
+</tbody></table></div>
+<p><b>How it stays live.</b> Server data goes through TanStack Query, which caches and refreshes it. On a knowledge base page the browser also opens one SSE connection. When a progress or ready event arrives, the matching queries are refreshed, so progress bars and statuses change on their own.</p>
+
+<h2 id="s10"><span class="n">10</span>The command-line package</h2>
+<p>The <code>ragforge</code> command is what makes this installable by anyone. It is published to npm as <code>@masterdeepak15/ragforge</code>. One file contains the command, the whole server and (beside it) the built web app, so installing it gives you everything.</p>
+<figure>
+<div class="frame"><pre class="mermaid">
+sequenceDiagram
+  participant U as You
+  participant C as ragforge command
+  participant Dk as Docker
+  participant S as Server (background process)
+  U->>C: ragforge start
+  C->>C: read ~/.ragforge/config.json (port, data folder, secrets)
+  C->>Dk: make sure the Ollama container is running
+  C->>S: start a detached process "node ragforge.mjs __serve" with the secrets as environment
+  C->>C: write the pid file (process id and start time)
+  loop until healthy, up to 30 seconds
+    C->>S: GET /api/health
+  end
+  C-->>U: RAGForge is running at http://localhost:8080
+</pre></div>
+<figcaption>The same file runs as the command (when you type) and as the server (when the command starts it with <code>__serve</code>).</figcaption>
+</figure>
+
+<h3>What <code>ragforge setup</code> does</h3>
+<ol>
+<li>Asks where to keep data, which database file, which port, and who may connect (default: only this computer).</li>
+<li>Generates a random login secret and an encryption key and saves them in <code>config.json</code> (readable by you only).</li>
+<li>If Docker is running, offers to run Ollama in a container, bound to <code>127.0.0.1</code>, with models stored in your data folder. It picks a chat model by your RAM (<code>llama3.2:1b</code> under 8 GB, <code>llama3.2:3b</code> up to 32 GB, <code>llama3.1:8b</code> above) and asks before downloading. Without Docker it says so and offers other routes.</li>
+<li>Creates the database and writes the Ollama provider into it, so the first start already works.</li>
+</ol>
+
+<h3>How it controls the background process</h3>
+<ul>
+<li><b>start</b> launches the server detached (no window) and waits for a healthy answer, so “running” really means running. If it dies at once, the log's last lines are shown.</li>
+<li><b>The pid file</b> stores the process id <i>and the start time</i>. After a reboot the same number may belong to another program, so a pid file older than the last boot is treated as stale and never used to kill anything.</li>
+<li><b>stop</b> asks the process to end, waits, and forces it only if needed.</li>
+<li><b>service install</b> makes <code>ragforge start</code> run when you log in: a per-user “run at login” entry on Windows (no administrator rights; a first attempt with Task Scheduler was refused by Windows for normal users), a launch agent on macOS, a systemd user service on Linux.</li>
+<li><b>mcp add</b> creates an API key, then edits the AI tool's own configuration (merging, with a backup, and refusing to touch a file it cannot parse).</li>
+<li><b>doctor</b> checks Node, settings, data folder, port, Docker, Ollama and its models, and says what to do.</li>
+</ul>
+
+<h2 id="s11"><span class="n">11</span>Decisions and trade-offs</h2>
+<p>Good answers in an interview are usually “I chose X because Y, and the cost is Z”. These are the real ones.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Decision</th><th>Why</th><th>The cost</th></tr></thead>
+<tbody>
+<tr><td>SQLite for everything</td><td>One file, no database server to install, easy to back up. Fits a self-hosted tool for one person or a small team.</td><td>One writer at a time, one machine. A Postgres path exists in the code but is not production-ready.</td></tr>
+<tr><td>Exact vector scan instead of a vector index</td><td>Measured: the index the database offers inserted about 190 vectors a second against about 7,600 without it, and slowed as it grew. An exact scan took about 110 ms (95th percentile) for 30,000 chunks of 384 numbers, and is always correct.</td><td>Search time grows with size. Comfortable to roughly 100,000 chunks per knowledge base, then Postgres with an index would be the move.</td></tr>
+<tr><td>Hybrid search (meaning + keywords)</td><td>Meaning search misses exact names and codes. Keyword search misses paraphrases. Together they cover each other's gaps.</td><td>Two searches per question, plus tuning.</td></tr>
+<tr><td>A persistent queue in the database</td><td>Jobs survive restarts, can be retried, and need no extra service.</td><td>A small polling delay. Fine for one server.</td></tr>
+<tr><td>SSE for progress, not Kafka or MQTT</td><td>Only the server needs to talk to the browser, and everything is in one process. SSE is one built-in browser feature. The event bus is an interface, so a Redis or NATS version could replace it for several servers.</td><td>Events are not shared between servers or replayed after a restart (the UI re-reads the database).</td></tr>
+<tr><td>One vector table per knowledge base</td><td>Different knowledge bases may use different models with different vector sizes.</td><td>More tables.</td></tr>
+<tr><td>Record the embedding model and refuse mixing</td><td>Vectors from two models cannot be compared, even at equal length. Silent mixing gives wrong answers with no error.</td><td>Changing the model means a new knowledge base.</td></tr>
+<tr><td>Stateless MCP endpoint</td><td>Each request is verified on its own. Nothing to expire or leak between calls.</td><td>No streaming back to the tool.</td></tr>
+<tr><td>Hash API keys</td><td>A leaked database must not leak working keys.</td><td>A key is shown only once.</td></tr>
+<tr><td>Per-knowledge-base settings</td><td>The right minimum similarity depends on the embedding model and the documents.</td><td>One more thing to understand.</td></tr>
+<tr><td>Local AI by default</td><td>Private and free. Documents never leave the computer.</td><td>Small local models are slower and weaker than hosted ones.</td></tr>
+</tbody></table></div>
+
+<h2 id="s12"><span class="n">12</span>Problems we hit, and how they were solved</h2>
+<p>Stories like these are the most convincing thing you can tell in an interview, because they show how you debug.</p>
+<details><summary>PDFs from the real world would not index</summary><div>
+<p>The first PDF library failed on valid files with the error “bad XRef entry” on the current Node version. The fix was to replace it with <code>unpdf</code> and test with real PDFs generated in the test suite. Lesson: a dependency that works in a demo can fail on real input, so test with real files.</p></div></details>
+<details><summary>Uploads over 1 MB failed with “413”</summary><div>
+<p>The upload plugin had a hidden default size limit of 1 MiB, which contradicted the “no limits” promise. The fix was an explicit unlimited setting plus a test that uploads a large file.</p></div></details>
+<details><summary>The AI answered, but nothing appeared on screen</summary><div>
+<p>The chat page tried to update an assistant message that had never been added to the list, so the answer was written to nothing. Found by writing a test that streamed a reply and looked for the text. Related fix: error events from the provider were ignored, so a failure looked like silence. They are now shown.</p></div></details>
+<details><summary>The AI ignored the documents</summary><div>
+<p>Two separate causes. First, the chat route passed the raw database row to the chat service, so the provider's API key and chosen model never arrived (the fields are <code>snake_case</code> in the database and <code>camelCase</code> in code). Second, a chat created with “None (general chat)” never searched anything. Fixes: map the fields properly, let a chat's knowledge base be changed, warn when a chat has none, and preselect one for new chats.</p></div></details>
+<details><summary>Provider setup “did not work”</summary><div>
+<p>The form sent field names the server did not expect, there was no validation, and no real connection test. Fix: rewrite the endpoints with validation, a real authenticated test request, sensible defaults, and a UI that shows why something failed.</p></div></details>
+<details><summary>Setup kept sending you back to the setup page</summary><div>
+<p>The app read “is it set up?” once at startup and never again, so after you created the admin it still believed it was a fresh install. Fix: the wizard refreshes that status before leaving, and the server returns the new user so the wizard can sign in directly.</p></div></details>
+<details><summary>Reloading a deep link gave a 500 error</summary><div>
+<p>The static file plugin was configured in a way that broke the “serve the app for any unknown page” fallback. Found in a real browser (not by unit tests), fixed and covered by a test.</p></div></details>
+<details><summary>A crash could restart-loop the server forever</summary><div>
+<p>If a file exhausted memory, the job stayed “running”, restart put it back, and it crashed again. Fix: recovery counts attempts and fails a job that already used them all.</p></div></details>
+<details><summary>Windows refused the “start at login” task</summary><div>
+<p>The obvious approach, a scheduled task at logon, needs administrator rights, which a normal user does not have. It only showed up when run for real, because the unit tests used a fake shell. The fix was a per-user entry in the “run at login” list. A related bug: backslashes in the registry path were silently dropped by JavaScript string rules, and the test had the same mistake, so both agreed and both were wrong. Lesson: tests that copy the code's assumptions prove nothing, so run it for real.</p></div></details>
+
+<h2 id="s13"><span class="n">13</span>See it with your own eyes</h2>
+<p>You will explain this better after watching it. Each experiment takes a minute or two.</p>
+<ol>
+<li><b>Watch indexing happen.</b> Open a terminal and run <code>ragforge logs -f</code>. Upload a PDF in the browser. You will see requests arrive, then the worker busy. In the page, watch the Processing table: the stage changes (loading, chunking, embedding) and the bar fills.</li>
+<li><b>See the chunks.</b> Open the document in the knowledge base and use the chunk inspector, or use the Playground to search and look at the passages that come back.</li>
+<li><b>See why hybrid search exists.</b> In the Playground search for an exact word from a document, then for a paraphrase. Turn “keyword search” off and repeat.</li>
+<li><b>See the minimum similarity.</b> Search for an unrelated word. Raise Min similarity to 0.5, run again, and the results disappear.</li>
+<li><b>Break it on purpose.</b> Run <code>docker stop ragforge-ollama</code>, upload a file, and watch it retry and then fail with a clear message. Run <code>docker start ragforge-ollama</code> and press Retry.</li>
+<li><b>Prove it survives a restart.</b> Upload a large file, run <code>ragforge restart</code> while it is indexing, and watch it resume from the queue.</li>
+<li><b>Use the MCP tools.</b> After <code>ragforge mcp add claude-code</code>, ask Claude Code something that needs your documents and watch it call <code>list_knowledge_bases</code> then <code>search_knowledge</code>.</li>
+<li><b>Look at the data.</b> Run <code>ragforge status</code> to see where the files are, then open the database file with any SQLite viewer and look at <code>documents</code> and <code>ingestion_jobs</code>.</li>
+</ol>
+
+<h2 id="s14"><span class="n">14</span>Interview kit</h2>
+<div class="note"><b class="k">Say this about how it was built</b>It is fine, and better, to be direct: “I built this with an AI coding assistant. I set the requirements, made the design decisions, tested it in the browser and on my machine, and I can walk through how every part works.” That is true and it is a normal way to work now. What matters is that you can explain the design, so use this document until you can do that without reading it.</div>
+
+<h3>The 30-second pitch</h3>
+<div class="say"><b class="k">Say</b>“RAGForge is a self-hosted knowledge base. You upload documents, it indexes them in the background, and you ask questions and get answers with clickable sources. Other tools like Claude Code can search the same documents over MCP. It combines meaning and keyword search, runs fully locally with Ollama if you want, and installs with one npm command.”</div>
+
+<h3>The two-minute walkthrough</h3>
+<div class="say"><b class="k">Say</b>“There are two flows. <b>Indexing:</b> when you upload a file the server saves it and puts a job in a queue stored in the database, then returns immediately. A background worker takes the job, extracts the text, cuts it into overlapping chunks, turns batches of chunks into embeddings with the chosen AI model, and stores the text, the vectors and a keyword index. Progress is pushed to the browser over server-sent events. If the server restarts, unfinished jobs go back in the queue. <b>Asking:</b> the question is embedded with the same model, then I run a vector search and a keyword search in parallel and merge them with reciprocal rank fusion. The best passages go into the prompt, the model streams the answer, and the sources are returned so each citation is clickable. The same retrieval is exposed through a stateless MCP endpoint with scoped, hashed API keys. Around that there is a CLI that sets everything up, including a local Ollama in Docker, and manages the process.”</div>
+
+<h3>Questions you may get</h3>
+<details><summary>What is RAG, and why not just paste the document into the AI?</summary><div><p>A document can be larger than the model's context window, and pasting everything every time is slow and expensive. RAG finds only the few relevant passages and sends those, so answers stay grounded in the documents and the cost stays small. It also gives you citations.</p></div></details>
+<details><summary>Why hybrid search?</summary><div><p>Meaning search handles paraphrases but can miss exact names, product codes and rare terms. Keyword search is the opposite. Merging both with reciprocal rank fusion, a rank-based method that needs no score normalisation, gives better results than either alone.</p></div></details>
+<details><summary>How do you store and search vectors without a vector database?</summary><div><p>SQLite through libSQL has a vector column type and a cosine-distance function. Each knowledge base has its own table, and search is an exact scan. I measured the database's index option and it inserted far more slowly, so I chose the exact scan: about 110 ms for 30,000 chunks, always correct. Above roughly 100,000 chunks per knowledge base I would move to Postgres with pgvector.</p></div></details>
+<details><summary>How do you handle very large files?</summary><div><p>Uploads are streamed to disk, with a resumable path above 50 MB. Indexing streams the text in segments and embeds and stores in batches of 32, so memory stays flat no matter the size. Progress is real because each batch is stored as it is finished.</p></div></details>
+<details><summary>What happens if the server crashes in the middle of indexing?</summary><div><p>The queue is a database table. On start, jobs left “running” are re-queued. Re-running is safe because a run deletes the document's earlier chunks first. A job that has already used all its attempts is failed instead, so a file that crashes the process cannot cause a restart loop.</p></div></details>
+<details><summary>Why server-sent events instead of WebSockets, Kafka or MQTT?</summary><div><p>The traffic is one-way, server to browser, and everything runs in one process. SSE is built into browsers and needs no extra service. The event bus is an interface, so for several servers I could swap in Redis or NATS. Kafka would be heavy infrastructure for a self-hosted single-node tool.</p></div></details>
+<details><summary>How do you stop the AI making things up?</summary><div><p>The prompt tells it to answer from the supplied passages and cite them, and a minimum-similarity threshold keeps unrelated passages out. It reduces the problem but cannot remove it, which is why every answer shows its sources so a person can check them.</p></div></details>
+<details><summary>How is the MCP endpoint secured?</summary><div><p>Every request carries an API key. Only its SHA-256 hash is stored. Keys can be limited to chosen knowledge bases, are rate-limited to 60 requests a minute, and can be revoked instantly. The tools are read-only, and every tool re-checks the key's scope.</p></div></details>
+<details><summary>How are provider API keys stored?</summary><div><p>Encrypted with AES-256-GCM using a key from the environment, which the setup command generates randomly and stores in a file readable only by the user.</p></div></details>
+<details><summary>What if you change the embedding model later?</summary><div><p>Vectors from different models are not comparable, even if the length matches. The knowledge base records its model and indexing refuses a different one with a clear message, rather than silently producing bad search results.</p></div></details>
+<details><summary>How did you test it?</summary><div><p>Test-driven: roughly 760 automated tests across the server (about 310), the web app (about 230) and the command line (about 220), plus browser end-to-end tests. They include real processes (start, stop, crash handling), a scripted fake Docker, and real file-based databases. Beyond that I ran the real thing in a browser and found bugs that tests had not, such as the deep-link error and the Windows autostart permission problem.</p></div></details>
+<details><summary>What was the hardest bug?</summary><div><p>Pick one story from section 12. A good one: “answers never appeared”, because the symptom (blank chat) and the cause (updating a message that was never added) were far apart, and it was found by writing a test that reproduced the symptom first.</p></div></details>
+<details><summary>How would you scale it?</summary><div><p>Move the database to Postgres with pgvector and an HNSW index, replace the in-process event bus with Redis or NATS, and run several stateless API servers and several workers pulling from the shared queue. The code already separates those parts behind interfaces.</p></div></details>
+<details><summary>What are its limits?</summary><div><p>Scanned PDFs have no OCR. One SQLite file means one machine. There is one admin account and no multi-user management yet. Prompt injection from document content is only partly mitigated. Small local models can ramble. I can say what I would build next for each.</p></div></details>
+<details><summary>What would you improve next?</summary><div><p>OCR for scanned files, a re-ranking step after the merge, a hardened Postgres mode, multi-user roles, and answer-quality evaluation with a set of test questions.</p></div></details>
+
+<h3>Numbers worth remembering</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Thing</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Chunk size and overlap</td><td>about 1,000 and 200 characters</td></tr>
+<tr><td>Embedding batch</td><td>32 chunks per call</td></tr>
+<tr><td>Indexing workers</td><td>2 at a time</td></tr>
+<tr><td>Retries</td><td>3 attempts, wait 5 s then 10 s</td></tr>
+<tr><td>Hybrid weights</td><td>meaning 0.7, keywords 0.3, constant 60</td></tr>
+<tr><td>Passages per search</td><td>6 by default (12 fetched from each list)</td></tr>
+<tr><td>Minimum similarity</td><td>0.3 default</td></tr>
+<tr><td>Resumable upload from</td><td>50 MB</td></tr>
+<tr><td>Login token</td><td>7 days; passwords hashed with bcrypt cost 12</td></tr>
+<tr><td>MCP rate limit</td><td>60 requests a minute per key</td></tr>
+<tr><td>Search speed</td><td>about 110 ms at the 95th percentile for 30,000 chunks of 384 numbers</td></tr>
+<tr><td>Stack</td><td>Node.js, TypeScript, Fastify, SQLite (libSQL), React, Vite, Tailwind, TanStack Query</td></tr>
+</tbody></table></div>
+
+<h2 id="s15"><span class="n">15</span>Map of the code</h2>
+<p>Four packages in one repository. When someone asks “where is that?”, this is the answer.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Where</th><th>What is there</th></tr></thead>
+<tbody>
+<tr><td><code>packages/server/src/index.ts</code></td><td>Builds the server: plugins, routes, the worker, the event bus, and starts listening.</td></tr>
+<tr><td><code>services/ingestion.handler.ts</code></td><td>The indexing pipeline (sections 4): load, chunk, embed in batches, store, report progress.</td></tr>
+<tr><td><code>queue/job-queue.ts</code>, <code>queue/worker.ts</code></td><td>The persistent job queue and the worker loops with retries and crash recovery.</td></tr>
+<tr><td><code>core/ingestion/</code></td><td>Text extraction for each file type and the recursive chunker.</td></tr>
+<tr><td><code>core/retrieval/hybrid.retriever.ts</code></td><td>Question to passages: vector search, keyword search, rank fusion.</td></tr>
+<tr><td><code>core/vector/</code>, <code>core/search/fts.ts</code></td><td>Vector tables with the cosine scan, and the keyword index.</td></tr>
+<tr><td><code>core/providers/</code></td><td>One adapter per AI provider, the factory, the connection test, encryption and retry.</td></tr>
+<tr><td><code>services/chat.service.ts</code>, <code>routes/chat.routes.ts</code></td><td>Prompt building, streaming the answer, citations, chat sessions.</td></tr>
+<tr><td><code>mcp/</code></td><td>The MCP endpoint, its four tools, and the rate limiter.</td></tr>
+<tr><td><code>auth/api-keys.ts</code></td><td>Creating, hashing and checking API keys.</td></tr>
+<tr><td><code>services/retrieval-settings.ts</code></td><td>Per-knowledge-base search settings.</td></tr>
+<tr><td><code>db/connection.ts</code></td><td>Opens the database and creates or upgrades every table.</td></tr>
+<tr><td><code>packages/web/src</code></td><td>The React app: <code>pages/</code>, <code>features/</code> by area, <code>components/ui/</code>, <code>lib/</code> for the API client and uploads.</td></tr>
+<tr><td><code>packages/cli/src</code></td><td>The <code>ragforge</code> command: <code>setup.ts</code>, <code>runtime.ts</code> (start and stop), <code>docker.ts</code>, <code>mcp-command.ts</code>, <code>service.ts</code>, <code>uninstall.ts</code>, <code>doctor.ts</code>.</td></tr>
+<tr><td><code>packages/shared</code></td><td>Types and schemas used by both server and web.</td></tr>
+</tbody></table></div>
+<p style="color:var(--muted);font-size:14px;margin-top:36px">Written from the code at version 1.0.3. If something here and the code ever disagree, the code is right.</p>
+</main>
+</div>
+
+<script type="module">
+// Draws the sequence and state diagrams, in light or dark to match the page.
+try{
+  const m=(await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs')).default;
+  const t=document.documentElement.dataset.theme;
+  const dark=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);
+  m.initialize({startOnLoad:false,theme:dark?'dark':'neutral',securityLevel:'strict',fontFamily:'IBM Plex Sans, system-ui, sans-serif',sequence:{useMaxWidth:true}});
+  await m.run({querySelector:'pre.mermaid'});
+}catch(e){
+  document.querySelectorAll('pre.mermaid').forEach(function(p){p.style.textAlign='left';p.style.fontSize='13px';p.style.whiteSpace='pre-wrap';});
+}
+</script>
+<script>
+// Highlights the contents link of the section being read.
+(function(){
+  try{
+    var links=[].slice.call(document.querySelectorAll('nav.toc a'));
+    var map={};links.forEach(function(a){map[a.getAttribute('href').slice(1)]=a;});
+    var heads=[].slice.call(document.querySelectorAll('h2[id]'));
+    if(!('IntersectionObserver' in window)) return;
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){links.forEach(function(a){a.classList.remove('on');});var a=map[e.target.id];if(a)a.classList.add('on');}
+      });
+    },{rootMargin:'-20% 0px -70% 0px'});
+    heads.forEach(function(h){io.observe(h);});
+  }catch(e){}
+})();
+</script>
