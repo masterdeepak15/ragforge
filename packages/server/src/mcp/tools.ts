@@ -36,7 +36,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     'list_knowledge_bases',
     {
       title: 'List knowledge bases',
-      description: 'Lists the knowledge bases this API key can search, with document and chunk counts.',
+      description: 'Lists the knowledge bases this API key can search, with the name and description of each, and its document and chunk counts. Read the name and description to choose which knowledge base to search.',
     },
     async () => {
       const kbs = await accessibleKbs();
@@ -83,10 +83,10 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     {
       title: 'Search knowledge',
       description:
-        'Hybrid (semantic + keyword) search over the knowledge base. Returns the best matching text chunks with their source document. Omit knowledge_base to search every knowledge base this key can access.',
+        'Hybrid (semantic + keyword) search over a knowledge base. Returns the best matching text chunks with their source document. Call list_knowledge_bases first and pass the id of the knowledge base whose name and description fit the question. Omit knowledge_base to search every knowledge base this key can access, which is the safe choice when unsure.',
       inputSchema: {
         query: z.string().min(1).max(2000).describe('Natural-language question or keywords'),
-        knowledge_base: z.string().optional().describe('Restrict the search to one knowledge base id'),
+        knowledge_base: z.string().optional().describe('Restrict the search to one knowledge base: its id, from list_knowledge_bases'),
         top_k: z.number().optional().describe(`Number of chunks to return (1-${MAX_TOP_K}). Omit to use the knowledge base's own setting.`),
       },
     },

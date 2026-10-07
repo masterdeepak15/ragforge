@@ -252,3 +252,17 @@ describe('MCP search follows the knowledge base retrieval settings', () => {
     }
   });
 });
+
+describe('how an AI chooses between knowledge bases', () => {
+  it('is told to look at the list first and pick by name and description, or to search all when unsure', async () => {
+    const client = await connect(allKey);
+    const { tools } = await client.listTools();
+    const byName = Object.fromEntries(tools.map((x) => [x.name, x.description ?? '']));
+    expect(byName.list_knowledge_bases).toMatch(/name and description/i);
+    expect(byName.search_knowledge).toMatch(/list_knowledge_bases/);
+    expect(byName.search_knowledge).toMatch(/omit.*search (all|every)/i);
+    const search: any = tools.find((x) => x.name === 'search_knowledge');
+    expect(search.inputSchema.properties.knowledge_base.description).toMatch(/list_knowledge_bases/);
+    await client.close();
+  });
+});
