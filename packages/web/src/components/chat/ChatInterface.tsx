@@ -16,6 +16,8 @@ interface Props {
   onSelectSession: (session: ChatSession) => void;
   onNewSession: (kbId?: string) => void;
   onSendMessage: (content: string) => void;
+  /** Choose (or clear, with null) the knowledge base this chat searches. */
+  onChangeKnowledgeBase?: (knowledgeBaseId: string | null) => void;
   /** The assistant is working on a reply that has not started to appear yet. */
   pending?: 'thinking' | 'writing' | null;
   /** Shown above the input, e.g. when the knowledge base is empty or still indexing. */
@@ -30,6 +32,7 @@ export default function ChatInterface({
   onSelectSession,
   onNewSession,
   onSendMessage,
+  onChangeKnowledgeBase,
   pending,
   notice,
 }: Props) {
@@ -42,6 +45,11 @@ export default function ChatInterface({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, pending]);
+
+  useEffect(() => {
+    if (showNewSessionModal) setSelectedKb(knowledgeBases[0]?.id ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNewSessionModal]);
 
   const handleSend = () => {
     if (!input.trim() || !currentSession || pending) return;
@@ -122,6 +130,22 @@ export default function ChatInterface({
       <div className="flex-1 flex flex-col bg-background">
         {currentSession ? (
           <>
+            <div className="flex items-center gap-3 border-b border-border px-6 py-2.5 text-sm">
+              <span className="text-muted-foreground">Answering from</span>
+              <select
+                aria-label="Knowledge base for this chat"
+                value={currentSession.knowledge_base_id ?? ''}
+                onChange={(e) => onChangeKnowledgeBase?.(e.target.value || null)}
+                className="h-8 min-w-0 rounded-md border border-border bg-card px-2.5 text-sm text-foreground"
+              >
+                <option value="">None (general chat)</option>
+                {knowledgeBases.map((kb) => (
+                  <option key={kb.id} value={kb.id}>
+                    {kb.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-3xl mx-auto space-y-6">
                 {messages.length === 0 && (

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ChatPage from './ChatPage';
-import { mockFetch } from '../test/fetch';
+import { mockFetch, type Route as FetchRoute } from '../test/fetch';
 
 const SESSION = { id: 's1', title: 'New Chat', knowledge_base_id: null, created_at: '2026-10-07 10:00:00' };
 
@@ -16,11 +16,14 @@ function renderChat(streamResponse: () => Response) {
   return renderChatWithNet(streamResponse);
 }
 
-function renderChatWithNet(streamResponse: () => Response) {
+function renderChatWithNet(streamResponse: () => Response, opts: { session?: Record<string, unknown>; kbs?: unknown[]; extra?: FetchRoute[] } = {}) {
+  const session = opts.session ?? SESSION;
   const net = mockFetch([
-    { method: 'GET', path: '/api/chat/sessions', handler: () => [SESSION] },
-    { method: 'GET', path: '/api/knowledge-bases', handler: () => [] },
-    { method: 'GET', path: '/api/chat/sessions/s1', handler: () => SESSION },
+    ...(opts.extra ?? []),
+    { method: 'GET', path: '/api/chat/sessions', handler: () => [session] },
+    { method: 'GET', path: '/api/knowledge-bases', handler: () => opts.kbs ?? [] },
+    { method: 'GET', path: '/api/knowledge-bases/kb1/documents', handler: () => ({ counts: { ready: 3, processing: 0, pending: 0 } }) },
+    { method: 'GET', path: '/api/chat/sessions/s1', handler: () => session },
     { method: 'GET', path: '/api/chat/sessions/s1/messages', handler: () => [] },
     { method: 'POST', path: '/api/chat/sessions/s1/stream', handler: streamResponse },
   ]);
@@ -114,5 +117,58 @@ describe('ChatPage', () => {
       expect(await screen.findByText(/Provider is down/)).toBeInTheDocument();
       expect(screen.queryByRole('status', { name: /answer in progress/i })).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('which knowledge base a chat uses', () => {
+  const KB = { id: 'kb1', name: 'Handbook' };
+  const withKb = { ...SESSION, knowledge_base_id: 'kb1' };
+  const done = () => sse({ type: 'done', messageId: 'm', latencyMs: 1 });
+
+  it('warns that a chat without a knowledge base answers from general knowledge only, and offers to choose one', async () => {
+    renderChatWithNet(done, { kbs: [KB] });
+    const notice = await screen.findByText(/not using a knowledge base/i);
+    expect(notice).toHaveTextContent(/general knowledge/i);
+    expect(screen.getByRole('combobox', { name: 'Knowledge base for this chat' })).toHaveValue('');
+  });
+
+  it('sends the user to create a knowledge base when there is none yet', async () => {
+    renderChatWithNet(done, { kbs: [] });
+    expect(await screen.findByRole('link', { name: 'Create a knowledge base' })).toHaveAttribute('href', '/knowledge-bases');
+  });
+
+  it('attaches the chosen knowledge base to this chat, and the warning goes away', async () => {
+    const attached = { ...SESSION, knowledge_base_id: 'kb1' };
+    const net = renderChatWithNet(done, { kbs: [KB], extra: [{ method: 'PATCH', path: '/api/chat/sessions/s1', handler: () => attached }] });
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Knowledge base for this chat' }), 'kb1');
+    await waitFor(() => expect(net.find('PATCH', /sessions\/s1$/)).toHaveLength(1));
+    expect(net.find('PATCH', /sessions\/s1$/)[0].body).toEqual({ knowledgeBaseId: 'kb1' });
+    await waitFor(() => expect(screen.queryByText(/not using a knowledge base/i)).not.toBeInTheDocument());
+    expect(screen.getByRole('combobox', { name: 'Knowledge base for this chat' })).toHaveValue('kb1');
+  });
+
+  it('can go back to a general chat', async () => {
+    const net = renderChatWithNet(done, { session: withKb, kbs: [KB], extra: [{ method: 'PATCH', path: '/api/chat/sessions/s1', handler: () => SESSION }] });
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Knowledge base for this chat' }), '');
+    await waitFor(() => expect(net.find('PATCH', /sessions\/s1$/)[0]?.body).toEqual({ knowledgeBaseId: null }));
+  });
+
+  it('shows no warning for a chat that uses a knowledge base', async () => {
+    renderChatWithNet(done, { session: withKb, kbs: [KB] });
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Knowledge base for this chat' })).toHaveValue('kb1'));
+    expect(screen.queryByText(/not using a knowledge base/i)).not.toBeInTheDocument();
+  });
+
+  it('explains when the choice could not be saved, and keeps the previous one', async () => {
+    renderChatWithNet(done, { kbs: [KB], extra: [{ method: 'PATCH', path: '/api/chat/sessions/s1', handler: () => new Response(JSON.stringify({ error: 'Knowledge base not found' }), { status: 404, headers: { 'content-type': 'application/json' } }) }] });
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Knowledge base for this chat' }), 'kb1');
+    expect(await screen.findByText(/Knowledge base not found/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Knowledge base for this chat' })).toHaveValue('');
+  });
+
+  it('preselects your knowledge base when you start a new chat, so it is not forgotten', async () => {
+    renderChatWithNet(done, { kbs: [KB] });
+    await userEvent.click((await screen.findAllByRole('button', { name: /New Chat/ }))[0]);
+    expect(await screen.findByLabelText('Knowledge base')).toHaveValue('kb1');
   });
 });

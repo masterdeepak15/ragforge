@@ -6,6 +6,7 @@ import ChatInterface from '../components/chat/ChatInterface';
 import { Loader2 } from 'lucide-react';
 import { toast } from '../components/ui/toaster';
 import { KbNotice } from '../features/chat/KbNotice';
+import { NoKbNotice } from '../features/chat/NoKbNotice';
 import { useKbReadiness } from '../features/chat/useKbReadiness';
 
 const messageOf = (e: unknown) => (e instanceof Error && e.message ? e.message : 'Something went wrong. Please try again.');
@@ -19,6 +20,7 @@ export default function ChatPage() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loading, setLoading] = useState(true);
   /** What the assistant is doing before its first words arrive; null when idle or already writing. */
+  const [kbError, setKbError] = useState('');
   const [pending, setPending] = useState<'thinking' | 'writing' | null>(null);
   const readiness = useKbReadiness(currentSession?.knowledge_base_id ?? undefined);
 
@@ -81,6 +83,17 @@ export default function ChatPage() {
       navigate(`/chat/${session.id}`);
     } catch (e) {
       toast.error(`Could not start a chat. ${messageOf(e)}`);
+    }
+  };
+
+  const changeKnowledgeBase = async (knowledgeBaseId: string | null) => {
+    if (!currentSession) return;
+    setKbError('');
+    try {
+      const updated = await apiFetch<ChatSession>(`/api/chat/sessions/${currentSession.id}`, { method: 'PATCH', json: { knowledgeBaseId } });
+      setCurrentSession(updated);
+    } catch (e) {
+      setKbError(`Could not change the knowledge base. ${messageOf(e)}`);
     }
   };
 
@@ -162,10 +175,22 @@ export default function ChatPage() {
       onSelectSession={(s) => navigate(`/chat/${s.id}`)}
       onNewSession={createSession}
       onSendMessage={sendMessage}
+      onChangeKnowledgeBase={changeKnowledgeBase}
       pending={pending}
       notice={
-        currentSession?.knowledge_base_id ? (
-          <KbNotice kbId={currentSession.knowledge_base_id} ready={readiness.data?.ready} processing={readiness.data?.processing} />
+        currentSession && (kbError || !currentSession.knowledge_base_id || readiness.data) ? (
+          <div className="space-y-2">
+            {kbError && (
+              <p role="alert" className="text-sm text-destructive">
+                {kbError}
+              </p>
+            )}
+            {currentSession.knowledge_base_id ? (
+              <KbNotice kbId={currentSession.knowledge_base_id} ready={readiness.data?.ready} processing={readiness.data?.processing} />
+            ) : (
+              <NoKbNotice hasKnowledgeBases={knowledgeBases.length > 0} />
+            )}
+          </div>
         ) : null
       }
     />

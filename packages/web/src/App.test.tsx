@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { configure, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { Outlet } from 'react-router-dom';
 import App from './App';
 import { mockFetch, type Route } from './test/fetch';
+
+// Pages are loaded lazily; when the whole suite runs in parallel the default one-second wait is too tight.
+configure({ asyncUtilTimeout: 5000 });
 
 vi.mock('./components/shell/AppShell', () => ({ default: () => <Outlet /> }));
 vi.mock('./features/dashboard/DashboardPage', () => ({ default: () => <h1>Overview page</h1> }));

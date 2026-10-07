@@ -92,3 +92,63 @@ describe('chat searches with the knowledge base retrieval settings', () => {
     expect(await askWith(kb, { topK: 2 })).toMatchObject({ topK: 2 });
   });
 });
+
+describe('PATCH /api/chat/sessions/:id (choosing the knowledge base of a chat)', () => {
+  const headers = () => ({ authorization: `Bearer ${t.token}` });
+  const newSession = async (knowledgeBaseId?: string) =>
+    (await t.app.inject({ method: 'POST', url: '/api/chat/sessions', headers: headers(), payload: knowledgeBaseId ? { knowledgeBaseId } : {} })).json();
+  const patch = (id: string, payload: unknown) => t.app.inject({ method: 'PATCH', url: `/api/chat/sessions/${id}`, headers: headers(), payload: payload as any });
+
+  it('attaches a knowledge base to a chat that had none, and later questions search it', async () => {
+    const kb = await createKb(t, 'attach-me');
+    const session = await newSession();
+    expect(session.knowledge_base_id).toBeNull();
+
+    const res = await patch(session.id, { knowledgeBaseId: kb });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id: session.id, knowledge_base_id: kb });
+
+    let searched: any;
+    const original = t.app.retriever.retrieve.bind(t.app.retriever);
+    (t.app.retriever as any).retrieve = async (q: any) => {
+      searched = q;
+      return [];
+    };
+    try {
+      await t.app.inject({ method: 'POST', url: `/api/chat/sessions/${session.id}/stream`, headers: headers(), payload: { message: 'hi' } });
+    } finally {
+      (t.app.retriever as any).retrieve = original;
+    }
+    expect(searched).toMatchObject({ knowledgeBaseId: kb });
+  });
+
+  it('detaches it again with null', async () => {
+    const kb = await createKb(t, 'detach-me');
+    const session = await newSession(kb);
+    const res = await patch(session.id, { knowledgeBaseId: null });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().knowledge_base_id).toBeNull();
+  });
+
+  it('refuses a knowledge base that does not exist, and leaves the chat as it was', async () => {
+    const kb = await createKb(t, 'keep-me');
+    const session = await newSession(kb);
+    const res = await patch(session.id, { knowledgeBaseId: 'no-such-kb' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error).toMatch(/knowledge base/i);
+    const after = (await t.app.inject({ method: 'GET', url: `/api/chat/sessions/${session.id}`, headers: headers() })).json();
+    expect(after.knowledge_base_id).toBe(kb);
+  });
+
+  it('answers 404 for an unknown chat and 400 for a body without knowledgeBaseId', async () => {
+    expect((await patch('no-such-chat', { knowledgeBaseId: null })).statusCode).toBe(404);
+    const session = await newSession();
+    expect((await patch(session.id, {})).statusCode).toBe(400);
+    expect((await patch(session.id, { knowledgeBaseId: 5 })).statusCode).toBe(400);
+  });
+
+  it('requires a signed-in user', async () => {
+    const session = await newSession();
+    expect((await t.app.inject({ method: 'PATCH', url: `/api/chat/sessions/${session.id}`, payload: { knowledgeBaseId: null } })).statusCode).toBe(401);
+  });
+});

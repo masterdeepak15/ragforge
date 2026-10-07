@@ -49,6 +49,23 @@ export async function chatRoutes(app: FastifyInstance) {
     return reply.send(session);
   });
 
+  /** PATCH /api/chat/sessions/:id: choose (or clear, with null) the knowledge base a chat searches. */
+  app.patch<{ Params: { id: string }; Body: { knowledgeBaseId?: unknown } }>('/api/chat/sessions/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const { knowledgeBaseId } = req.body ?? {};
+    if (knowledgeBaseId !== null && typeof knowledgeBaseId !== 'string') {
+      return reply.status(400).send({ error: 'knowledgeBaseId must be a knowledge base id, or null for a general chat.' });
+    }
+    const session = (await db().execute({ sql: `SELECT id FROM chat_sessions WHERE id = ?`, args: [req.params.id] })).rows[0];
+    if (!session) return reply.status(404).send({ error: 'Chat not found' });
+    if (knowledgeBaseId !== null) {
+      const kb = (await db().execute({ sql: `SELECT id FROM knowledge_bases WHERE id = ?`, args: [knowledgeBaseId] })).rows[0];
+      if (!kb) return reply.status(404).send({ error: 'Knowledge base not found' });
+    }
+    await db().execute({ sql: `UPDATE chat_sessions SET knowledge_base_id = ? WHERE id = ?`, args: [knowledgeBaseId, req.params.id] });
+    const rs = await db().execute({ sql: `SELECT * FROM chat_sessions WHERE id = ?`, args: [req.params.id] });
+    return reply.send(rs.rows[0]);
+  });
+
   /** GET /api/chat/sessions/:id/messages */
   app.get<{ Params: { id: string } }>('/api/chat/sessions/:id/messages', { onRequest: [app.authenticate] }, async (req, reply) => {
     const rs = await db().execute({
