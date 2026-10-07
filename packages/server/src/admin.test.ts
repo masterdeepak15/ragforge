@@ -17,7 +17,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await db.close();
   // Windows keeps the database file locked for a moment after close; a leftover temp folder is harmless.
-  await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch(() => {});
+  await rm(dir, { recursive: true, force: true }).catch(() => {});
 });
 
 const providers = async () => (await db.client.execute('SELECT * FROM ai_providers ORDER BY name')).rows as any[];
@@ -84,5 +84,19 @@ describe('createMcpApiKey', () => {
   it('can limit a key to some knowledge bases', async () => {
     const { key } = await createMcpApiKey(db, { name: 'Cursor', knowledgeBaseIds: ['kb1', 'kb2'] });
     expect((await new ApiKeyService(db).verify(key))?.scopeKbIds).toEqual(['kb1', 'kb2']);
+  });
+
+  it('replaces an earlier key with the same name, so connecting a tool again does not pile up working keys', async () => {
+    const first = await createMcpApiKey(db, { name: 'Claude Code', replaceExisting: true });
+    const second = await createMcpApiKey(db, { name: 'Claude Code', replaceExisting: true });
+    const keys = new ApiKeyService(db);
+    expect(await keys.verify(first.key)).toBeNull(); // the old one stopped working
+    expect(await keys.verify(second.key)).not.toBeNull();
+  });
+
+  it('leaves keys made by someone else alone, even with the same name', async () => {
+    const mine = await new ApiKeyService(db).create({ name: 'Claude Code', scopeKbIds: null, createdBy: 'admin-user-id' });
+    await createMcpApiKey(db, { name: 'Claude Code', replaceExisting: true });
+    expect(await new ApiKeyService(db).verify(mine.key)).not.toBeNull();
   });
 });

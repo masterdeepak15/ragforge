@@ -7,6 +7,7 @@ import { ApiKeyService } from './auth/api-keys.js';
 import { createDatabaseContext, runMigrations, type DatabaseContext } from './db/connection.js';
 
 export { APP_VERSION } from './config/env.js';
+export { ApiKeyService } from './auth/api-keys.js';
 export type { DatabaseContext };
 
 /** Opens (and creates, if needed) the SQLite database and brings its tables up to date. */
@@ -50,7 +51,14 @@ export async function seedOllamaProvider(db: DatabaseContext, seed: OllamaSeed):
 }
 
 /** Creates an API key for connecting an AI tool over MCP. The key is shown once; only its hash is stored. */
-export async function createMcpApiKey(db: DatabaseContext, input: { name: string; knowledgeBaseIds?: string[] }): Promise<{ id: string; key: string }> {
+export async function createMcpApiKey(
+  db: DatabaseContext,
+  input: { name: string; knowledgeBaseIds?: string[]; /** Revoke earlier keys this tool created with the same name. */ replaceExisting?: boolean },
+): Promise<{ id: string; key: string }> {
+  if (input.replaceExisting) {
+    // Only keys made by this tool: a key an admin created in the web app is never touched.
+    await db.client.execute({ sql: `UPDATE api_keys SET revoked_at = ? WHERE name = ? AND created_by = 'cli' AND revoked_at IS NULL`, args: [Date.now(), input.name] });
+  }
   const { id, key } = await new ApiKeyService(db).create({ name: input.name, scopeKbIds: input.knowledgeBaseIds ?? null, createdBy: 'cli' });
   return { id, key };
 }

@@ -70,6 +70,13 @@ describe('text', () => {
     expect(await terminal(['']).prompter.text('Port', '8080')).toBe('8080');
   });
 
+  it('does not show empty brackets when there is no default', async () => {
+    const { prompter, shown } = terminal(['delete']);
+    expect(await prompter.text('Type "delete" to confirm', '')).toBe('delete');
+    expect(shown()).toContain('Type "delete" to confirm: ');
+    expect(shown()).not.toContain('[]');
+  });
+
   it('keeps asking until the answer is valid, saying what was wrong', async () => {
     const validate = (v: string) => (/^\d+$/.test(v) ? null : 'Use digits only.');
     const { prompter, shown } = terminal(['abc', '12x', '9000']);

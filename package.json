@@ -10,11 +10,12 @@
     "dev": "npm run dev --workspace=@ragforge/server & npm run dev --workspace=@ragforge/web",
     "dev:server": "npm run dev --workspace=@ragforge/server",
     "dev:web": "npm run dev --workspace=@ragforge/web",
-    "build": "npm run build --workspaces",
-    "typecheck": "npm run build --workspace=@ragforge/shared && npm run typecheck --workspaces",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run build --workspace=@ragforge/shared && npm run build --workspace=@ragforge/server && npm run typecheck --workspaces",
     "start": "npm run start --workspace=@ragforge/server",
-    "test": "npm run build --workspace=@ragforge/shared && npm test --workspaces --if-present",
-    "e2e": "npm run build && npm run e2e --workspace=@ragforge/web"
+    "test": "npm run build --workspace=@ragforge/shared && npm run build --workspace=@ragforge/server && npm test --workspaces --if-present",
+    "e2e": "npm run build && npm run e2e --workspace=@ragforge/web",
+    "package": "npm run build && npm run bundle --workspace=@masterdeepak15/ragforge && npm pack --workspace=@masterdeepak15/ragforge --pack-destination ."
   },
   "keywords": [
     "rag",

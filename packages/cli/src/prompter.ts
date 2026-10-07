@@ -1,4 +1,4 @@
-import { createInterface } from 'readline/promises';
+import { createInterface } from 'node:readline/promises';
 import type { Readable, Writable } from 'stream';
 
 export interface Choice<T extends string> {
@@ -12,6 +12,8 @@ export interface Prompter {
   select<T extends string>(question: string, choices: Choice<T>[], defaultValue: T): Promise<T>;
   confirm(question: string, defaultValue: boolean): Promise<boolean>;
   text(question: string, defaultValue: string, validate?: (value: string) => string | null): Promise<string>;
+  /** Releases the terminal, so the program can exit. */
+  close?(): void;
 }
 
 /** A prompter that reads lines from `input` and writes questions to `output`. */
@@ -21,6 +23,7 @@ export function readlinePrompter(input: Readable = process.stdin, output: Writab
   const say = (text: string) => output.write(text + '\n');
 
   return {
+    close: () => rl.close(),
     async select(question, choices, defaultValue) {
       const defaultIndex = Math.max(0, choices.findIndex((c) => c.value === defaultValue));
       say(`\n${question}`);
@@ -46,7 +49,7 @@ export function readlinePrompter(input: Readable = process.stdin, output: Writab
 
     async text(question, defaultValue, validate) {
       for (;;) {
-        const answer = (await ask(`${question} [${defaultValue}]: `)) || defaultValue;
+        const answer = (await ask(`${question}${defaultValue ? ` [${defaultValue}]` : ''}: `)) || defaultValue;
         const problem = validate?.(answer) ?? null;
         if (!problem) return answer;
         say(problem);

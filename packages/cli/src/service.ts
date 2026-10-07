@@ -24,7 +24,9 @@ export interface ServiceTarget {
 
 export type ServiceState = 'installed' | 'not-installed' | 'unsupported';
 
-const TASK = 'RAGForge';
+/** Per-user "run at login" list. Writing to it needs no administrator rights, unlike a scheduled task that runs at logon. */
+const RUN_KEY = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`;
+const RUN_VALUE = 'RAGForge';
 const LABEL = 'com.ragforge';
 const exists = (p: string) => access(p).then(() => true, () => false);
 
@@ -36,7 +38,7 @@ const unsupported = (t: ServiceTarget) => new ServiceProblem(`Starting at login 
  * status behave the same whether or not it was started automatically.
  */
 
-// ---- Windows: Task Scheduler (no administrator rights needed) ----
+// ---- Windows: the per-user Run entry ----
 const vbs = (s: string) => s.replace(/"/g, '""');
 const vbsPath = (t: ServiceTarget) => join(t.home, 'autostart.vbs');
 
@@ -109,9 +111,9 @@ export async function installService(shell: Shell, t: ServiceTarget): Promise<{ 
   if (t.platform === 'win32') {
     await mkdir(t.home, { recursive: true });
     await writeFile(vbsPath(t), launcherScript(t));
-    const r = await shell.run('schtasks', ['/Create', '/TN', TASK, '/SC', 'ONLOGON', '/RL', 'LIMITED', '/F', '/TR', `wscript.exe "${vbsPath(t)}"`]);
-    if (r.code !== 0) throw new ServiceProblem(`Could not register the startup task: ${(r.stderr || r.stdout).trim()}`);
-    return { summary: 'RAGForge will start automatically when you log in to Windows (Task Scheduler task "RAGForge").' };
+    const r = await shell.run('reg', ['add', RUN_KEY, '/v', RUN_VALUE, '/t', 'REG_SZ', '/d', `wscript.exe "${vbsPath(t)}"`, '/f']);
+    if (r.code !== 0) throw new ServiceProblem(`Could not register RAGForge to start at login: ${(r.stderr || r.stdout).trim()}`);
+    return { summary: 'RAGForge will start automatically when you log in to Windows.' };
   }
 
   if (t.platform === 'darwin') {
@@ -141,7 +143,7 @@ export async function installService(shell: Shell, t: ServiceTarget): Promise<{ 
 
 export async function uninstallService(shell: Shell, t: ServiceTarget): Promise<'removed' | 'not-installed'> {
   if (t.platform === 'win32') {
-    const r = await shell.run('schtasks', ['/Delete', '/TN', TASK, '/F']);
+    const r = await shell.run('reg', ['delete', RUN_KEY, '/v', RUN_VALUE, '/f']);
     await rm(vbsPath(t), { force: true });
     return r.code === 0 ? 'removed' : 'not-installed';
   }
@@ -162,7 +164,7 @@ export async function uninstallService(shell: Shell, t: ServiceTarget): Promise<
 }
 
 export async function serviceStatus(shell: Shell, t: ServiceTarget): Promise<ServiceState> {
-  if (t.platform === 'win32') return (await shell.run('schtasks', ['/Query', '/TN', TASK])).code === 0 ? 'installed' : 'not-installed';
+  if (t.platform === 'win32') return (await shell.run('reg', ['query', RUN_KEY, '/v', RUN_VALUE])).code === 0 ? 'installed' : 'not-installed';
   if (t.platform === 'darwin') return (await exists(plistPath(t))) ? 'installed' : 'not-installed';
   if (t.platform === 'linux') return (await shell.run('systemctl', ['--user', 'is-enabled', 'ragforge.service'])).code === 0 ? 'installed' : 'not-installed';
   return 'unsupported';

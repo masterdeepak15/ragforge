@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DockerProblem, dockerEnv, dockerState, ensureModels, ensureOllamaContainer, findDocker, recommendModels, removeOllama, waitForOllama, type RunResult, type Shell } from './docker.js';
+import { DockerProblem, realShell, dockerEnv, dockerState, ensureModels, ensureOllamaContainer, findDocker, recommendModels, removeOllama, waitForOllama, type RunResult, type Shell } from './docker.js';
 
 type Reply = RunResult | ((args: string[]) => RunResult);
 const ok = (stdout = ''): RunResult => ({ code: 0, stdout, stderr: '' });
@@ -169,5 +169,18 @@ describe('removeOllama', () => {
     const { shell, calls } = fakeShell({ 'docker rm': ok() });
     await removeOllama(shell, docker, 'ragforge-ollama');
     expect(calls[0].args).toEqual(['rm', '-f', 'ragforge-ollama']);
+  });
+});
+
+describe('realShell', () => {
+  it('passes arguments with spaces and quotes through unchanged', async () => {
+    const r = await realShell.run('node', ['-e', 'console.log(process.argv[1] + "|" + process.argv[2])', 'a b "c"', 'Authorization: Bearer rf_x']);
+    expect(r.code).toBe(0);
+    expect(r.stdout.trim()).toBe('a b "c"|Authorization: Bearer rf_x');
+  });
+
+  it('reports a program that does not exist as a failure instead of throwing', async () => {
+    const r = await realShell.run('definitely-not-a-real-program-xyz', ['--version']);
+    expect(r.code).not.toBe(0);
   });
 });

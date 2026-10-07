@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { posix, win32 } from 'path';
+import { launch } from './launch.js';
 
 export class DockerProblem extends Error {
   constructor(message: string) {
@@ -28,7 +29,9 @@ export const realShell: Shell = {
     return new Promise((resolve) => {
       let stdout = '';
       let stderr = '';
-      const child = spawn(cmd, args, { env: { ...process.env, ...opts.env }, windowsHide: true });
+      const l = launch(cmd, args);
+      if ('refused' in l) return resolve({ code: 126, stdout: '', stderr: l.refused });
+      const child = spawn(l.file, l.args, { env: { ...process.env, ...opts.env }, windowsHide: true, windowsVerbatimArguments: l.verbatim });
       const timer = opts.timeoutMs ? setTimeout(() => child.kill(), opts.timeoutMs) : undefined;
       child.stdout.on('data', (d) => (stdout += d));
       child.stderr.on('data', (d) => (stderr += d));
@@ -44,7 +47,9 @@ export const realShell: Shell = {
   },
   runLive(cmd, args, opts = {}) {
     return new Promise((resolve) => {
-      const child = spawn(cmd, args, { env: { ...process.env, ...opts.env }, stdio: 'inherit', windowsHide: true });
+      const l = launch(cmd, args);
+      if ('refused' in l) return resolve(126);
+      const child = spawn(l.file, l.args, { env: { ...process.env, ...opts.env }, stdio: 'inherit', windowsHide: true, windowsVerbatimArguments: l.verbatim });
       child.on('error', () => resolve(127));
       child.on('close', (code) => resolve(code ?? 1));
     });

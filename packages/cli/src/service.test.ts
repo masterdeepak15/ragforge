@@ -28,9 +28,11 @@ const target = (platform: string, over: Partial<ServiceTarget> = {}): ServiceTar
 });
 const exists = (p: string) => access(p).then(() => true, () => false);
 
-describe('Windows: starts when you log in (Task Scheduler)', () => {
+describe('Windows: starts when you log in (per-user Run entry, no administrator needed)', () => {
+  const RUN_KEY = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`;
+
   it('writes a hidden launcher and registers it for the current user only', async () => {
-    const { shell, calls } = fakeShell({ 'schtasks /Create': ok('SUCCESS') });
+    const { shell, calls } = fakeShell({ 'reg add': ok('The operation completed successfully.') });
     const result = await installService(shell, target('win32'));
 
     const vbs = await readFile(join(home, 'autostart.vbs'), 'utf8');
@@ -40,33 +42,34 @@ describe('Windows: starts when you log in (Task Scheduler)', () => {
     expect(vbs).toContain(home); // keeps a custom RAGFORGE_HOME working
     expect(vbs).toMatch(/, 0, /); // window style 0 = hidden
 
-    const create = calls.find((c) => c.cmd === 'schtasks')!.args;
-    expect(create).toEqual(expect.arrayContaining(['/Create', '/TN', 'RAGForge', '/SC', 'ONLOGON', '/RL', 'LIMITED', '/F']));
-    expect(create[create.indexOf('/TR') + 1]).toContain(join(home, 'autostart.vbs'));
+    const add = calls.find((c) => c.cmd === 'reg')!.args;
+    expect(add.slice(0, 4)).toEqual(['add', RUN_KEY, '/v', 'RAGForge']);
+    expect(add).toEqual(expect.arrayContaining(['/t', 'REG_SZ', '/f']));
+    expect(add[add.indexOf('/d') + 1]).toBe(`wscript.exe "${join(home, 'autostart.vbs')}"`);
     expect(result.summary).toMatch(/log in/i);
   });
 
   it('explains a failure', async () => {
-    const { shell } = fakeShell({ 'schtasks /Create': fail('ERROR: Access is denied.') });
+    const { shell } = fakeShell({ 'reg add': fail('ERROR: Access is denied.') });
     await expect(installService(shell, target('win32'))).rejects.toThrow(ServiceProblem);
     await expect(installService(shell, target('win32'))).rejects.toThrow(/Access is denied/);
   });
 
-  it('removes the task and the launcher', async () => {
-    const { shell, calls } = fakeShell({ 'schtasks /Create': ok(), 'schtasks /Delete': ok() });
+  it('removes the entry and the launcher', async () => {
+    const { shell, calls } = fakeShell({ 'reg add': ok(), 'reg delete': ok() });
     await installService(shell, target('win32'));
     expect(await uninstallService(shell, target('win32'))).toBe('removed');
-    expect(calls.some((c) => c.args.includes('/Delete') && c.args.includes('RAGForge'))).toBe(true);
+    expect(calls.some((c) => c.cmd === 'reg' && c.args[0] === 'delete' && c.args.includes('RAGForge') && c.args.includes('/f'))).toBe(true);
     expect(await exists(join(home, 'autostart.vbs'))).toBe(false);
   });
 
   it('reports whether it is installed', async () => {
-    expect(await serviceStatus(fakeShell({ 'schtasks /Query': ok() }).shell, target('win32'))).toBe('installed');
-    expect(await serviceStatus(fakeShell({ 'schtasks /Query': fail('ERROR: The system cannot find the file specified.') }).shell, target('win32'))).toBe('not-installed');
+    expect(await serviceStatus(fakeShell({ 'reg query': ok('RAGForge REG_SZ wscript.exe') }).shell, target('win32'))).toBe('installed');
+    expect(await serviceStatus(fakeShell({ 'reg query': fail('ERROR: The system was unable to find the specified registry key or value.') }).shell, target('win32'))).toBe('not-installed');
   });
 
   it('says there was nothing to remove', async () => {
-    const { shell } = fakeShell({ 'schtasks /Delete': fail('ERROR: The system cannot find the file specified.') });
+    const { shell } = fakeShell({ 'reg delete': fail('ERROR: The system was unable to find the specified registry key or value.') });
     expect(await uninstallService(shell, target('win32'))).toBe('not-installed');
   });
 });
