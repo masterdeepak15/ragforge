@@ -36,3 +36,37 @@ describe('the published package', () => {
     expect(cli.version).toBe(server.version);
   });
 });
+
+import { execFileSync } from 'child_process';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+
+describe('publishing without a build', () => {
+  const check = (dir: string) => {
+    try {
+      execFileSync(process.execPath, [join(__dirname, '..', 'scripts', 'prepublish-check.mjs'), dir], { encoding: 'utf8', stdio: 'pipe' });
+      return { ok: true, message: '' };
+    } catch (e: any) {
+      return { ok: false, message: String(e.stderr) };
+    }
+  };
+
+  it('runs automatically before `npm publish`', () => {
+    expect(cli.scripts.prepublishOnly).toBe('node scripts/prepublish-check.mjs');
+  });
+
+  it('stops a publish when the program has not been built, and says how to build it', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'ragforge-pub-'));
+    const result = check(empty);
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/npm run package/);
+  });
+
+  it('lets a publish through when the program and the web app are built', () => {
+    const built = mkdtempSync(join(tmpdir(), 'ragforge-pub-'));
+    mkdirSync(join(built, 'dist', 'web'), { recursive: true });
+    writeFileSync(join(built, 'dist', 'ragforge.mjs'), '');
+    writeFileSync(join(built, 'dist', 'web', 'index.html'), '');
+    expect(check(built).ok).toBe(true);
+  });
+});

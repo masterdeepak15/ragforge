@@ -27,7 +27,8 @@
   "scripts": {
     "bundle": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "node scripts/prepublish-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
