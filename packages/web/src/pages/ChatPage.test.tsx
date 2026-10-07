@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -16,11 +16,11 @@ function renderChat(streamResponse: () => Response) {
   return renderChatWithNet(streamResponse);
 }
 
-function renderChatWithNet(streamResponse: () => Response, opts: { session?: Record<string, unknown>; kbs?: unknown[]; extra?: FetchRoute[] } = {}) {
+function renderChatWithNet(streamResponse: () => Response, opts: { session?: Record<string, unknown>; sessions?: Record<string, unknown>[]; kbs?: unknown[]; extra?: FetchRoute[] } = {}) {
   const session = opts.session ?? SESSION;
   const net = mockFetch([
     ...(opts.extra ?? []),
-    { method: 'GET', path: '/api/chat/sessions', handler: () => [session] },
+    { method: 'GET', path: '/api/chat/sessions', handler: () => opts.sessions ?? [session] },
     { method: 'GET', path: '/api/knowledge-bases', handler: () => opts.kbs ?? [] },
     { method: 'GET', path: '/api/knowledge-bases/kb1/documents', handler: () => ({ counts: { ready: 3, processing: 0, pending: 0 } }) },
     { method: 'GET', path: '/api/chat/sessions/s1', handler: () => session },
@@ -31,6 +31,7 @@ function renderChatWithNet(streamResponse: () => Response, opts: { session?: Rec
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={['/chat/s1']}>
         <Routes>
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat/:id" element={<ChatPage />} />
         </Routes>
       </MemoryRouter>
@@ -170,5 +171,74 @@ describe('which knowledge base a chat uses', () => {
     renderChatWithNet(done, { kbs: [KB] });
     await userEvent.click((await screen.findAllByRole('button', { name: /New Chat/ }))[0]);
     expect(await screen.findByLabelText('Knowledge base')).toHaveValue('kb1');
+  });
+});
+
+describe('deleting a chat', () => {
+  const A = { ...SESSION, id: 's1', title: 'Chat A' };
+  const B = { ...SESSION, id: 's2', title: 'Chat B', knowledge_base_id: 'kb1' };
+  const done = () => sse({ type: 'done', messageId: 'm', latencyMs: 1 });
+  const two = (extra: FetchRoute[] = []) =>
+    renderChatWithNet(done, {
+      session: A,
+      sessions: [A, B],
+      kbs: [{ id: 'kb1', name: 'Handbook' }],
+      extra: [
+        { method: 'GET', path: '/api/chat/sessions/s2', handler: () => B },
+        { method: 'GET', path: '/api/chat/sessions/s2/messages', handler: () => [] },
+        ...extra,
+      ],
+    });
+  const ok204 = () => new Response(null, { status: 204 });
+
+  it('puts a delete button on every chat, and deletes nothing until you confirm', async () => {
+    const net = two();
+    expect(await screen.findByRole('button', { name: 'Delete chat “Chat A”' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete chat “Chat B”' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete “Chat B”?' });
+    expect(dialog).toHaveTextContent(/messages/i);
+    expect(net.find('DELETE', /sessions/)).toHaveLength(0);
+  });
+
+  it('keeps the chat when you cancel', async () => {
+    const net = two();
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete chat “Chat B”' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(net.find('DELETE', /sessions/)).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Delete chat “Chat B”' })).toBeInTheDocument();
+  });
+
+  it('deletes another chat on confirmation and stays on the chat you are in', async () => {
+    const net = two([{ method: 'DELETE', path: '/api/chat/sessions/s2', handler: ok204 }]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete chat “Chat B”' }));
+    await userEvent.click(await within(await screen.findByRole('alertdialog')).findByRole('button', { name: 'Delete chat' }));
+    await waitFor(() => expect(net.find('DELETE', /sessions\/s2$/)).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Delete chat “Chat B”' })).not.toBeInTheDocument());
+    expect(screen.getByRole('combobox', { name: 'Knowledge base for this chat' })).toHaveValue(''); // still Chat A
+  });
+
+  it('moves to the next chat when you delete the one that is open', async () => {
+    const net = two([{ method: 'DELETE', path: '/api/chat/sessions/s1', handler: ok204 }]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete chat “Chat A”' }));
+    await userEvent.click(await within(await screen.findByRole('alertdialog')).findByRole('button', { name: 'Delete chat' }));
+    await waitFor(() => expect(net.find('DELETE', /sessions\/s1$/)).toHaveLength(1));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Knowledge base for this chat' })).toHaveValue('kb1')); // Chat B
+    expect(screen.queryByRole('button', { name: 'Delete chat “Chat A”' })).not.toBeInTheDocument();
+  });
+
+  it('shows the empty state after the last chat is deleted', async () => {
+    renderChatWithNet(done, { session: A, sessions: [A], extra: [{ method: 'DELETE', path: '/api/chat/sessions/s1', handler: ok204 }] });
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete chat “Chat A”' }));
+    await userEvent.click(await within(await screen.findByRole('alertdialog')).findByRole('button', { name: 'Delete chat' }));
+    expect(await screen.findByText('Select a chat or create a new one')).toBeInTheDocument();
+  });
+
+  it('says why a chat could not be deleted, and keeps it', async () => {
+    two([{ method: 'DELETE', path: '/api/chat/sessions/s2', handler: () => new Response(JSON.stringify({ error: 'Database is locked' }), { status: 500, headers: { 'content-type': 'application/json' } }) }]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete chat “Chat B”' }));
+    await userEvent.click(await within(await screen.findByRole('alertdialog')).findByRole('button', { name: 'Delete chat' }));
+    expect(await screen.findByText(/Could not delete the chat.*Database is locked/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete chat “Chat B”' })).toBeInTheDocument();
   });
 });

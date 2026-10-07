@@ -152,3 +152,37 @@ describe('PATCH /api/chat/sessions/:id (choosing the knowledge base of a chat)',
     expect((await t.app.inject({ method: 'PATCH', url: `/api/chat/sessions/${session.id}`, payload: { knowledgeBaseId: null } })).statusCode).toBe(401);
   });
 });
+
+describe('DELETE /api/chat/sessions/:id', () => {
+  const headers = () => ({ authorization: `Bearer ${t.token}` });
+  const newSession = async () => (await t.app.inject({ method: 'POST', url: '/api/chat/sessions', headers: headers(), payload: { title: 'to delete' } })).json();
+  const messagesOf = async (id: string) => Number(((await t.app.db.client.execute({ sql: 'SELECT COUNT(*) AS n FROM chat_messages WHERE session_id = ?', args: [id] })).rows[0] as any).n);
+
+  it('deletes the chat together with all of its messages, leaving nothing behind', async () => {
+    const session = await newSession();
+    for (const [i, role] of ['user', 'assistant'].entries()) {
+      await t.app.db.client.execute({ sql: `INSERT INTO chat_messages (id, session_id, role, content) VALUES (?, ?, ?, ?)`, args: [`m-${session.id}-${i}`, session.id, role, 'text'] });
+    }
+    expect(await messagesOf(session.id)).toBe(2);
+
+    const res = await t.app.inject({ method: 'DELETE', url: `/api/chat/sessions/${session.id}`, headers: headers() });
+    expect(res.statusCode).toBe(204);
+    expect(await messagesOf(session.id)).toBe(0);
+    expect((await t.app.inject({ method: 'GET', url: `/api/chat/sessions/${session.id}`, headers: headers() })).statusCode).toBe(404);
+  });
+
+  it('does not touch other chats', async () => {
+    const keep = await newSession();
+    const drop = await newSession();
+    await t.app.db.client.execute({ sql: `INSERT INTO chat_messages (id, session_id, role, content) VALUES (?, ?, 'user', 'hi')`, args: [`m-${keep.id}`, keep.id] });
+    await t.app.inject({ method: 'DELETE', url: `/api/chat/sessions/${drop.id}`, headers: headers() });
+    expect(await messagesOf(keep.id)).toBe(1);
+    expect((await t.app.inject({ method: 'GET', url: `/api/chat/sessions/${keep.id}`, headers: headers() })).statusCode).toBe(200);
+  });
+
+  it('answers 404 for a chat that does not exist, and needs a signed-in user', async () => {
+    expect((await t.app.inject({ method: 'DELETE', url: '/api/chat/sessions/no-such-chat', headers: headers() })).statusCode).toBe(404);
+    const session = await newSession();
+    expect((await t.app.inject({ method: 'DELETE', url: `/api/chat/sessions/${session.id}` })).statusCode).toBe(401);
+  });
+});

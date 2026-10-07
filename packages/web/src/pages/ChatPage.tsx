@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(true);
   /** What the assistant is doing before its first words arrive; null when idle or already writing. */
   const [kbError, setKbError] = useState('');
+  const [deleteError, setDeleteError] = useState('');
   const [pending, setPending] = useState<'thinking' | 'writing' | null>(null);
   const readiness = useKbReadiness(currentSession?.knowledge_base_id ?? undefined);
 
@@ -83,6 +84,23 @@ export default function ChatPage() {
       navigate(`/chat/${session.id}`);
     } catch (e) {
       toast.error(`Could not start a chat. ${messageOf(e)}`);
+    }
+  };
+
+  const deleteSession = async (session: ChatSession) => {
+    setDeleteError('');
+    try {
+      await apiFetch(`/api/chat/sessions/${session.id}`, { method: 'DELETE' });
+    } catch (e) {
+      setDeleteError(`Could not delete the chat. ${messageOf(e)}`);
+      return;
+    }
+    setSessions((prev) => prev.filter((x) => x.id !== session.id));
+    if (currentSession?.id === session.id) {
+      // Leave the deleted chat; the page then opens the next one, or shows the empty state.
+      setCurrentSession(null);
+      setMessages([]);
+      navigate('/chat');
     }
   };
 
@@ -176,16 +194,17 @@ export default function ChatPage() {
       onNewSession={createSession}
       onSendMessage={sendMessage}
       onChangeKnowledgeBase={changeKnowledgeBase}
+      onDeleteSession={deleteSession}
       pending={pending}
       notice={
-        currentSession && (kbError || !currentSession.knowledge_base_id || readiness.data) ? (
+        (currentSession || deleteError) && (kbError || deleteError || !currentSession?.knowledge_base_id || readiness.data) ? (
           <div className="space-y-2">
-            {kbError && (
+            {(kbError || deleteError) && (
               <p role="alert" className="text-sm text-destructive">
-                {kbError}
+                {kbError || deleteError}
               </p>
             )}
-            {currentSession.knowledge_base_id ? (
+            {!currentSession ? null : currentSession.knowledge_base_id ? (
               <KbNotice kbId={currentSession.knowledge_base_id} ready={readiness.data?.ready} processing={readiness.data?.processing} />
             ) : (
               <NoKbNotice hasKnowledgeBases={knowledgeBases.length > 0} />

@@ -197,6 +197,10 @@ export async function chatRoutes(app: FastifyInstance) {
 
   /** DELETE /api/chat/sessions/:id */
   app.delete<{ Params: { id: string } }>('/api/chat/sessions/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
+    const exists = (await db().execute({ sql: `SELECT id FROM chat_sessions WHERE id = ?`, args: [req.params.id] })).rows[0];
+    if (!exists) return reply.status(404).send({ error: 'Chat not found' });
+    // Messages are removed explicitly, so this never depends on the database's cascade setting.
+    await db().execute({ sql: `DELETE FROM chat_messages WHERE session_id = ?`, args: [req.params.id] });
     await db().execute({ sql: `DELETE FROM chat_sessions WHERE id = ?`, args: [req.params.id] });
     return reply.status(204).send();
   });

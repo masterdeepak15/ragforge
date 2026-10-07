@@ -2,10 +2,11 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { Send, Plus, MessageSquare } from 'lucide-react';
+import { Send, Plus, MessageSquare, Trash2 } from 'lucide-react';
 import type { ChatSession, ChatMessage, Citation, KnowledgeBase } from '../../types/api';
 import CitationDrawer from './CitationDrawer';
 import { Button } from '../ui/button';
+import { ConfirmDialog } from '../ui/confirm-dialog';
 import { Dialog, DialogContent } from '../ui/dialog';
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   onNewSession: (kbId?: string) => void;
   onSendMessage: (content: string) => void;
   /** Choose (or clear, with null) the knowledge base this chat searches. */
+  /** Delete a chat (the user has already confirmed). */
+  onDeleteSession?: (session: ChatSession) => Promise<void> | void;
   onChangeKnowledgeBase?: (knowledgeBaseId: string | null) => void;
   /** The assistant is working on a reply that has not started to appear yet. */
   pending?: 'thinking' | 'writing' | null;
@@ -33,12 +36,15 @@ export default function ChatInterface({
   onNewSession,
   onSendMessage,
   onChangeKnowledgeBase,
+  onDeleteSession,
   pending,
   notice,
 }: Props) {
   const [input, setInput] = useState('');
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [selectedKb, setSelectedKb] = useState<string>('');
+  const [deleting, setDeleting] = useState<ChatSession | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
   const [openCitation, setOpenCitation] = useState<Citation | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +56,17 @@ export default function ChatInterface({
     if (showNewSessionModal) setSelectedKb(knowledgeBases[0]?.id ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNewSessionModal]);
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeletePending(true);
+    try {
+      await onDeleteSession?.(deleting);
+    } finally {
+      setDeletePending(false);
+      setDeleting(null);
+    }
+  };
 
   const handleSend = () => {
     if (!input.trim() || !currentSession || pending) return;
@@ -108,20 +125,31 @@ export default function ChatInterface({
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {sessions.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => onSelectSession(s)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                currentSession?.id === s.id
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span className="line-clamp-2">{s.title}</span>
-              </div>
-            </button>
+            <div key={s.id} className="group relative">
+              <button
+                onClick={() => onSelectSession(s)}
+                className={`w-full text-left pl-3 pr-9 py-2.5 rounded-lg text-sm transition-colors ${
+                  currentSession?.id === s.id
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span className="line-clamp-2">{s.title}</span>
+                </div>
+              </button>
+              {onDeleteSession && (
+                <button
+                  type="button"
+                  aria-label={`Delete chat “${s.title}”`}
+                  onClick={() => setDeleting(s)}
+                  className="absolute right-1.5 top-2 rounded-md p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 max-lg:opacity-100"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>
@@ -269,6 +297,17 @@ export default function ChatInterface({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(open) => !open && !deletePending && setDeleting(null)}
+        title={`Delete “${deleting?.title ?? ''}”?`}
+        description="This chat and all of its messages are removed. Your knowledge bases and documents are not affected. This can't be undone."
+        confirmLabel="Delete chat"
+        destructive
+        pending={deletePending}
+        onConfirm={() => void confirmDelete()}
+      />
 
       {/* Citation drawer */}
       <CitationDrawer citation={openCitation} onClose={() => setOpenCitation(null)} />
