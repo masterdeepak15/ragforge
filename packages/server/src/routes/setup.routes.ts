@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { APP_VERSION } from '../config/env.js';
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import type { SetupStatus } from '@ragforge/shared';
@@ -26,7 +27,7 @@ export async function setupRoutes(app: FastifyInstance) {
       hasDefaultProvider: hasProvider,
       hasEmbeddingProvider: hasEmbedding,
       hasKnowledgeBase: hasKb,
-      version: '1.0.0',
+      version: APP_VERSION,
       storageMode: app.db.mode,
     };
     return reply.send(status);

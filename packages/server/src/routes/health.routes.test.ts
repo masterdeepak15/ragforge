@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../config/env.js';
 import { describe, it, expect, afterAll } from 'vitest';
 import { createTestApp } from '../test/helpers.js';
 
@@ -12,7 +13,7 @@ describe('health endpoints', () => {
     open.push(t);
     const res = await t.app.inject({ method: 'GET', url: '/api/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: 'ok', version: '1.0.0' });
+    expect(res.json()).toEqual({ status: 'ok', version: APP_VERSION });
   });
 
   it('GET /api/ready is public and reports each check', async () => {

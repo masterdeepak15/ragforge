@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { APP_VERSION } from '../config/env.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ApiKeyService } from '../auth/api-keys.js';
@@ -40,7 +41,7 @@ export async function registerMcp(app: FastifyInstance, opts: McpOptions): Promi
         .send(rpcError(-32029, `Rate limit exceeded; retry in ${decision.retryAfterSec}s`));
     }
 
-    const server = new McpServer({ name: 'ragforge', version: '1.0.0' });
+    const server = new McpServer({ name: 'ragforge', version: APP_VERSION });
     registerTools(server, { db: app.db, retriever: app.retriever, scope: key.scopeKbIds });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
 

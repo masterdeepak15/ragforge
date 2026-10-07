@@ -101,3 +101,13 @@ describe('loadConfig: listen address', () => {
     expect(loadConfig(prod({ HOST: '' }) as NodeJS.ProcessEnv).host).toBe('0.0.0.0');
   });
 });
+
+describe('APP_VERSION', () => {
+  it('matches the version in package.json, so the app, the health check and the npm package agree', async () => {
+    const { readFileSync } = await import('fs');
+    const { join } = await import('path');
+    const { APP_VERSION } = await import('./env.js');
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8'));
+    expect(APP_VERSION).toBe(pkg.version);
+  });
+});

@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../config/env.js';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { createTestApp, type TestApp } from '../test/helpers.js';
@@ -33,7 +34,7 @@ describe('GET /api/stats', () => {
       storageBytes: 0,
       queue: { queued: 0, running: 0, failed: 0 },
       recent: [],
-      system: { version: '1.0.0', storageMode: 'sqlite', workerRunning: false },
+      system: { version: APP_VERSION, storageMode: 'sqlite', workerRunning: false },
     });
     expect(typeof s.system.ingestConcurrency).toBe('number');
   });

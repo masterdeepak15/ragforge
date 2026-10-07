@@ -1,6 +1,6 @@
 {
   "name": "@masterdeepak15/ragforge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "RAGForge: a self-hosted knowledge base with cited answers and an MCP server, installed and managed from the command line.",
   "type": "module",
   "license": "MIT",
