@@ -65,8 +65,21 @@ describe('publishing without a build', () => {
   it('lets a publish through when the program and the web app are built', () => {
     const built = mkdtempSync(join(tmpdir(), 'ragforge-pub-'));
     mkdirSync(join(built, 'dist', 'web'), { recursive: true });
-    writeFileSync(join(built, 'dist', 'ragforge.mjs'), '');
+    writeFileSync(join(built, 'package.json'), JSON.stringify({ version: '2.3.4' }));
+    writeFileSync(join(built, 'dist', 'ragforge.mjs'), 'const APP_VERSION = "2.3.4";');
     writeFileSync(join(built, 'dist', 'web', 'index.html'), '');
     expect(check(built).ok).toBe(true);
+  });
+
+  it('stops a publish when the built program is from an older version than package.json', () => {
+    const stale = mkdtempSync(join(tmpdir(), 'ragforge-pub-'));
+    mkdirSync(join(stale, 'dist', 'web'), { recursive: true });
+    writeFileSync(join(stale, 'package.json'), JSON.stringify({ version: '2.3.5' }));
+    writeFileSync(join(stale, 'dist', 'ragforge.mjs'), 'const APP_VERSION = "2.3.4";');
+    writeFileSync(join(stale, 'dist', 'web', 'index.html'), '');
+    const result = check(stale);
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/2\.3\.5/);
+    expect(result.message).toMatch(/npm run package/);
   });
 });
