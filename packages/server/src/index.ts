@@ -10,7 +10,7 @@ import { HybridRetriever } from './core/retrieval/hybrid.retriever.js';
 import { InProcessEventBus, type EventBus } from './events/event-bus.js';
 import { JobQueue } from './queue/job-queue.js';
 import { Worker } from './queue/worker.js';
-import { ingestDocument, resolveEmbedder } from './services/ingestion.handler.js';
+import { ingestDocument, resolveEmbedder, sameEmbeddingModel } from './services/ingestion.handler.js';
 import { createKeywordIndex } from './core/search/fts.js';
 import { migrateLegacyVectors } from './core/vector/migrate-legacy.js';
 import { ProviderFactory } from './core/providers/factory.js';
@@ -158,7 +158,7 @@ export async function createApp(options: CreateAppOptions = {}) {
       // Same provider and model the knowledge base was indexed with (the old code always used the default provider).
       const { provider, model } = await resolveEmbedder(app.db, kb);
       const recorded = (await client.execute({ sql: `SELECT embedding_model FROM kb_vector_tables WHERE knowledge_base_id = ?`, args: [knowledgeBaseId] })).rows[0];
-      if (recorded?.embedding_model && recorded.embedding_model !== model) {
+      if (recorded?.embedding_model && !sameEmbeddingModel(String(recorded.embedding_model), model)) {
         throw new Error(
           `The embedding model is now "${model}", but this knowledge base was indexed with "${recorded.embedding_model}", so searches would return meaningless matches. ` +
             `Switch back to the original embedding model, or create a new knowledge base.`

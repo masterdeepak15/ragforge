@@ -100,7 +100,7 @@ async function runIngestion(job: Job, doc: any, deps: IngestDeps, signal: AbortS
 
   // Vectors from different models live in different spaces even when their length matches; never mix them.
   const recorded = (await client.execute({ sql: `SELECT embedding_model FROM kb_vector_tables WHERE knowledge_base_id = ?`, args: [knowledgeBaseId] })).rows[0] as any;
-  if (recorded?.embedding_model && recorded.embedding_model !== model) {
+  if (recorded?.embedding_model && !sameEmbeddingModel(recorded.embedding_model, model)) {
     throw new NonRetryableError(
       `This knowledge base was indexed with "${recorded.embedding_model}", but the embedding model is now "${model}". ` +
         `Vectors from different models cannot be mixed. Switch back to the original model, or create a new knowledge base.`
@@ -216,6 +216,12 @@ function findCut(text: string, limit: number): number {
     if (idx > limit / 2) return idx + sep.length;
   }
   return limit;
+}
+
+/** Ollama lists "nomic-embed-text" as "nomic-embed-text:latest"; both name the same model, so they must not count as a change. */
+export function sameEmbeddingModel(a: string, b: string): boolean {
+  const norm = (m: string) => m.trim().toLowerCase().replace(/:latest$/, '');
+  return norm(a) === norm(b);
 }
 
 export async function resolveEmbedder(db: DatabaseContext, kb: any): Promise<{ provider: ProviderInstance; model: string }> {
